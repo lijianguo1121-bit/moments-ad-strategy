@@ -29,3 +29,10 @@
 ## 版权说明
 
 `references/case-images/` 内案例原图来自腾讯广告帮助中心行业案例专题，原课件标注"授权用于教学"，请控制分发范围。
+
+## 快速直读链接
+
+学员/其他 AI 直接读这个文件即可学习完整方法论：
+`strategy-full.md`（raw 链接：`https://raw.githubusercontent.com/lijianguo1121-bit/moments-ad-strategy/main/strategy-full.md`）
+
+> 注：`references/case-images/`（30 张腾讯案例原图）未包含在公开仓库中（原课件标注"授权用于教学"）；如需完整包请私下获取 `.skill` 文件。
