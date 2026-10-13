@@ -173,23 +173,101 @@ def build(config_path):
     landing = cfg.get("landing")
     landing_html = ""
     if landing:
-        uri = img_to_data_uri(P(landing["image"]), max_w=landing.get("max_w", 760), quality=82)
+        paths = landing.get("images") or ([landing["image"]] if landing.get("image") else [])
+        frames = "".join(
+            f'<figure class="lframe"><img src="{img_to_data_uri(P(p), max_w=landing.get("max_w", 560), quality=84)}"'
+            f' alt="{esc(os.path.basename(p))}" loading="lazy" class="zoom"></figure>'
+            for p in paths
+        )
         rows = "".join(f"<tr><th>{esc(k)}</th><td>{esc(v)}</td></tr>" for k, v in landing.get("spec", {}).items())
         landing_html = f"""
     <section id="sec-landing" class="block">
       <h2 class="sec-title">六、详情页（落地页）</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
-        按原生落地页模板做的竖版长页，可直接发布或用 <code>landing/详情页.html</code> 二次修改。
-        顺序：<strong>首屏钩子 → 4 个痛点围绕人物 → 品牌区 + 4 个能力块 → 行业覆盖网格 → 选择理由 → 留资表单 → 底部备案</strong>。
+        详情页做成<strong>两张 9:16</strong>（上屏 + 下屏，可上下连排），两屏共用同一套色调。
+        页面文件见 <code>landing/详情页.html</code>。点图可放大。
       </p>
-      <div class="lwrap">
-        <figure class="lframe"><img src="{uri}" alt="详情页长图" loading="lazy" class="zoom"></figure>
-        <div class="lside">
-          <table class="aspec">{rows}</table>
-          <div class="anote">{esc(landing.get('note',''))}</div>
-        </div>
-      </div>
+      <!--PROMPT_SLOT-->""" + (
+            f"""
+      <div class="lscreens" style="grid-template-columns:repeat({len(paths)},1fr)">{frames}</div>
+      <div class="lside" style="position:static;margin-top:20px">
+        <table class="aspec">{rows}</table>
+        <div class="anote">{esc(landing.get('note',''))}</div>
+      </div>""" if paths else "") + """
     </section>"""
+
+    # ---------- 详情页 · 文生图提示词 ----------
+    prompt_html, prompt_data, prompt_copy_all = "", [], []
+    if cfg.get("landing_prompts"):
+        pdata = json.load(open(P(cfg["landing_prompts"]), encoding="utf-8"))
+        items = pdata.get("items", [])
+        g_order, g_map = [], {}
+        for it in items:
+            g = it.get("group", "")
+            if g not in g_map:
+                g_map[g] = []
+                g_order.append(g)
+            g_map[g].append(it)
+        idx, secs = 0, []
+        for g in g_order:
+            pcards = []          # 注意：不要复用 cards 这个名字，否则会覆盖外层文案卡
+            for it in g_map[g]:
+                cp = it.get("copy") or []
+                cp_plain = "\n".join(f'{c.get("label", "")}：{c.get("text", "")}' for c in cp)
+                whole = "\n".join(
+                    [f'【{it.get("slot", "")}】', it["prompt"], ""]
+                    + ([f'—— 这一屏要写的文案（{len(cp)} 处）——']
+                       + [f'{c.get("label", "")}：{c.get("text", "")}' for c in cp] if cp else []))
+                prompt_data.append({"p": it["prompt"], "c": cp_plain, "a": whole})
+                if cp_plain:
+                    prompt_copy_all.append(f'【{it.get("slot", "")} · 文案】\n{cp_plain}')
+
+                pnote = f'<div class="pnote">{esc(it["note"])}</div>' if it.get("note") else ""
+                cp_html, extra = "", ""
+                if cp:
+                    rows = "".join(
+                        f'<div class="cprow"><span class="cplabel">{esc(c.get("label", ""))}</span>'
+                        f'<span class="cptext">{esc(c.get("text", ""))}</span></div>' for c in cp)
+                    cp_html = (f'<div class="copysec"><div class="copysec-t">'
+                               f'这一屏要写的文案（{len(cp)} 处）</div>'
+                               f'<div class="cprows">{rows}</div></div>')
+                    extra = (f'<button class="btn" data-pc="{idx}">复制这一屏文案</button>'
+                             f'<button class="btn" data-pa="{idx}">复制整屏</button>')
+                pcards.append(f"""
+          <article class="pcard">
+            <div class="phead"><span class="pslot">{esc(it.get('slot',''))}</span>
+              <span class="psize">{esc(it.get('size',''))}</span></div>
+            <div class="pbox">{esc(it['prompt'])}</div>
+            {pnote}
+            {cp_html}
+            <div class="cbtns"><button class="btn btn-p" data-p="{idx}">复制提示词</button>{extra}</div>
+          </article>""")
+                idx += 1
+            secs.append(f'<h4 class="pgroup">{esc(g)}</h4><div class="cgrid">{"".join(pcards)}</div>')
+        rules = "".join(f"<li>{esc(r)}</li>" for r in pdata.get("rules", []))
+        copy_all_btn = ('<button class="btn" data-p-copy-all="1">复制全部落地页文案</button>'
+                        if prompt_copy_all else "")
+        prompt_html = f"""
+      <h3 class="sub-title">配图提示词 + 该屏文案（{len(items)} 条 · 都可一键复制）</h3>
+      <p style="color:var(--sub);font-size:13.5px;margin:0 0 14px">
+        每条 = <strong>AI 出「视觉底」的提示词</strong> + <strong>这一屏实际要写的文案</strong>。
+        图片只当背景（提示词里不要求 AI 写中文），文字与卡片一律用 HTML/CSS 叠上去。
+        两者常交给不同的人做（生图的 / 排版的），所以分开给、分别可复制。
+      </p>
+      <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-p" data-p-all="1">复制全部 {len(items)} 条提示词</button>
+        {copy_all_btn}
+      </div>
+      {''.join(secs)}
+      <blockquote style="margin-top:18px"><strong>通用规范</strong><ul style="margin:8px 0 0;padding-left:20px">{rules}</ul></blockquote>
+      <h3 class="sub-title" style="margin-top:34px">详情页两屏图（9:16）</h3>"""
+
+    if prompt_html:
+        if landing_html and "<!--PROMPT_SLOT-->" in landing_html:
+            landing_html = landing_html.replace("<!--PROMPT_SLOT-->", prompt_html, 1)
+        else:
+            landing_html = (f'<section id="sec-landing" class="block">'
+                            f'<h2 class="sec-title">六、详情页（落地页）</h2>{prompt_html}</section>')
 
     # ---------- 导航 ----------
     groups = [("概览", "sec-overview", []),
@@ -337,13 +415,34 @@ def build(config_path):
   .anote{{margin-top:12px;font-size:12.5px;color:var(--sub);line-height:1.65}}
   @media (max-width:1000px){{.agrid{{grid-template-columns:1fr}}}}
 
-  /* 详情页长图 */
-  .lwrap{{display:grid;grid-template-columns:400px 1fr;gap:26px;align-items:start}}
-  .lframe{{margin:0;border-radius:14px;overflow:hidden;border:1px solid var(--line);line-height:0;
-    max-height:900px;overflow-y:auto;background:#fff}}
+  /* 详情页（两屏 9:16） */
+  .lscreens{{display:grid;gap:20px;margin-top:6px;align-items:start}}
+  .lframe{{margin:0;border-radius:14px;overflow:hidden;border:1px solid var(--line);line-height:0;background:#fff}}
   .lframe img{{display:block;width:100%;cursor:zoom-in}}
-  .lside{{position:sticky;top:20px}}
-  @media (max-width:1000px){{.lwrap{{grid-template-columns:1fr}} .lside{{position:static}} .lframe{{max-height:none}}}}
+  .lside{{position:static}}
+  @media (max-width:700px){{.lscreens{{grid-template-columns:1fr !important}}}}
+
+  /* 文生图提示词 */
+  .sub-title{{font-size:16px;margin:34px 0 0;padding-left:10px;border-left:4px solid var(--accent)}}
+  .pgroup{{font-size:14px;margin:22px 0 12px;color:#374151}}
+  .pcard{{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px}}
+  .phead{{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}}
+  .pslot{{font-size:13.5px;font-weight:700}}
+  .psize{{font-size:11px;color:var(--sub);background:#eef0f3;padding:2px 8px;border-radius:99px;white-space:nowrap}}
+  .pbox{{background:#fbfbfc;border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.8;
+    color:#374151;word-break:break-word}}
+  .pnote{{margin-top:9px;font-size:12px;color:var(--sub);line-height:1.6}}
+  .copysec{{margin-top:12px;border:1px solid rgba(232,114,47,.30);border-radius:12px;
+    background:rgba(232,114,47,.045);padding:12px 14px 6px}}
+  .copysec-t{{font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:8px}}
+  .cprows{{display:flex;flex-direction:column}}
+  .cprow{{display:flex;gap:10px;align-items:flex-start;padding:7px 0;
+    border-top:1px dashed rgba(232,114,47,.22);font-size:13.5px;line-height:1.7}}
+  .cprow:first-child{{border-top:none}}
+  .cplabel{{flex:0 0 118px;color:#8a8f98;font-size:12px;padding-top:2px}}
+  .cptext{{flex:1;color:#1c1f23;word-break:break-word}}
+  @media (max-width:700px){{.cprow{{flex-direction:column;gap:2px}}.cplabel{{flex:none}}}}
 
   /* 交付清单 */
   .deliver li{{margin:6px 0}}
@@ -490,6 +589,7 @@ def build(config_path):
 <div id="toast">已复制</div>
 
 <script id="pagedata" type="application/json">{json.dumps(all_blocks, ensure_ascii=False)}</script>
+<script id="promptdata" type="application/json">{json.dumps(prompt_data, ensure_ascii=False)}</script>
 <script>
 (function(){{
   var DATA = JSON.parse(document.getElementById('pagedata').textContent);
@@ -525,6 +625,26 @@ def build(config_path):
       var sel=DATA.slice(s,e);
       copy(sel.map(function(d){{return d.copy}}).join('\\n\\n'),'已复制 '+sel.length+' 条文案');
     }});
+  }});
+
+  var P = JSON.parse((document.getElementById('promptdata')||{{textContent:'[]'}}).textContent);
+  document.querySelectorAll('.btn[data-p]').forEach(function(b){{
+    b.addEventListener('click',function(){{ var it=P[+b.dataset.p]||{{}}; copy(it.p||'','提示词已复制'); }});
+  }});
+  document.querySelectorAll('.btn[data-pc]').forEach(function(b){{
+    b.addEventListener('click',function(){{ var it=P[+b.dataset.pc]||{{}}; copy(it.c||'','这一屏文案已复制'); }});
+  }});
+  document.querySelectorAll('.btn[data-pa]').forEach(function(b){{
+    b.addEventListener('click',function(){{ var it=P[+b.dataset.pa]||{{}}; copy(it.a||'','整屏（提示词 + 文案）已复制'); }});
+  }});
+  document.querySelectorAll('.btn[data-p-all]').forEach(function(b){{
+    b.addEventListener('click',function(){{
+      copy(P.map(function(x){{return x.p}}).join('\\n\\n'),'全部 '+P.length+' 条提示词已复制'); }});
+  }});
+  document.querySelectorAll('.btn[data-p-copy-all]').forEach(function(b){{
+    b.addEventListener('click',function(){{
+      var s=P.filter(function(x){{return x.c}}).map(function(x){{return x.c}}).join('\\n\\n');
+      copy(s,'全部落地页文案已复制'); }});
   }});
 
   var lb=document.getElementById('lb'), lbi=lb.querySelector('img');

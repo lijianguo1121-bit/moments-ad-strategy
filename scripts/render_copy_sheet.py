@@ -31,9 +31,29 @@ copy_spec.json 结构（ads 为数组）：
   ]
 }
 
+也可以传「配图/文生图提示词」结构（items 为数组，脚本自动识别）：
+{
+  "title": "详情页 · 配图提示词 + 该屏文案",
+  "out": "/abs/path/详情页-文生图提示词.html",
+  "items": [
+    {
+      "group": "第 1 条 · 上屏（9:16）",   // 分组标题（同组连续渲染）
+      "slot": "上屏 · 首屏视觉底",          // 本条名称
+      "size": "1080 × 1920（9:16）",       // 规格标签（可省略）
+      "prompt": "……",                      // 必填：交给图像模型的提示词
+      "note": "……",                        // 补充说明（可省略）
+      "copy": [                            // 该图对应的「要写的文案」（可省略）
+        {"label": "主标题", "text": "……"}
+      ]
+    }
+  ],
+  "rules": ["通用规范……"]                  // 页面顶部规范（可省略）
+}
+
 设计约定：
 - 文案行不自动换行，建议每行 ≤22 个中文字（与 render_ad_mockup.py 同一限制）
 - 复制内容一律为「纯文本」，不含任何 Markdown 符号，粘出去即可用
+- **图与字要分别可复制**：出图的人拿 prompt，排版的人拿 copy，两者常不是同一个人
 """
 import argparse
 import html
@@ -67,12 +87,16 @@ def build_html(spec):
 
 
 def build_prompt_html(spec):
-    """文生图提示词清单：按 group 分组，每条一个复制按钮。"""
+    """文生图 / 配图提示词清单：按 group 分组。
+
+    每一条 = 「AI 出视觉底的提示词」+「这一屏实际要写的文案」（可选 `copy`）。
+    两者都带复制按钮，因为它们本来就要分别交付给不同的人（生图的 / 排版的）。
+    """
     title = spec.get("title", "文生图提示词")
     brand = spec.get("brand", "")
     accent = spec.get("accent_color", "#e8743b")
-    subtitle = spec.get("subtitle") or f"共 {len(spec['items'])} 条 · 点按钮直接复制"
     items = spec["items"]
+    subtitle = spec.get("subtitle") or f"共 {len(items)} 条 · 点按钮直接复制"
 
     groups, order = {}, []
     for it in items:
@@ -83,14 +107,34 @@ def build_prompt_html(spec):
         groups[g].append(it)
 
     secs = []
-    plain_all = []
+    plain_all, copy_all = [], []
     for gi, g in enumerate(order):
         cards = []
-        for it in groups[g]:
+        for si, it in enumerate(groups[g]):
             prompt = it["prompt"]
             plain_all.append(f"【{it.get('slot','')}】\n{prompt}")
             note = f'<div class="note">{esc(it["note"])}</div>' if it.get("note") else ""
             size = f'<span class="chip">{esc(it["size"])}</span>' if it.get("size") else ""
+
+            cp = it.get("copy") or []
+            if cp:
+                rows = "".join(
+                    f'<div class="cprow"><span class="cplabel">{esc(c.get("label", ""))}</span>'
+                    f'<span class="cptext">{esc(c.get("text", ""))}</span></div>'
+                    for c in cp)
+                copy_block = (f'<div class="copysec">'
+                              f'<div class="copysec-t">这一屏要写的文案（{len(cp)} 处）</div>'
+                              f'<div class="cprows">{rows}</div></div>')
+                copy_all.append(
+                    f"【{it.get('slot', '')} · 文案】\n"
+                    + "\n".join(f'{c.get("label", "")}：{c.get("text", "")}' for c in cp))
+                copy_btn = (f'<button class="btn" data-g="{gi}" data-s="{si}" data-t="c">'
+                            f'复制这一屏文案</button>'
+                            f'<button class="btn" data-g="{gi}" data-s="{si}" data-t="a">'
+                            f'复制整屏（提示词+文案）</button>')
+            else:
+                copy_block, copy_btn = "", ""
+
             cards.append(f"""
       <article class="card">
         <div class="card-head">
@@ -102,8 +146,10 @@ def build_prompt_html(spec):
         </div>
         <div class="copybox"><div class="line prompt">{esc(prompt)}</div></div>
         {note}
+        {copy_block}
         <div class="btns">
-          <button class="btn btn-primary" data-g="{gi}" data-s="{len(cards)}">复制提示词</button>
+          <button class="btn btn-primary" data-g="{gi}" data-s="{si}" data-t="p">复制提示词</button>
+          {copy_btn}
         </div>
       </article>""")
         secs.append(f"""
@@ -115,9 +161,20 @@ def build_prompt_html(spec):
     rule_html = ""
     if spec.get("rules"):
         li = "".join(f"<li>{esc(r)}</li>" for r in spec["rules"])
-        rule_html = f"<section class='card ruletop'><div class='card-title'>通用规范（先读这 5 条）</div><ul class='rules'>{li}</ul></section>"
+        rule_html = (f"<section class='card ruletop'><div class='card-title'>通用规范（先读这几条）</div>"
+                     f"<ul class='rules'>{li}</ul></section>")
 
-    data = [[it["prompt"] for it in groups[g]] for g in order]
+    data = [[{"p": it["prompt"],
+              "c": "\n".join(f'{c.get("label", "")}：{c.get("text", "")}' for c in it.get("copy", [])),
+              "a": "\n".join(
+                  [f'【{it.get("slot", "")}】', it["prompt"], ""]
+                  + ([f'—— 这一屏要写的文案（{len(it["copy"])} 处）——']
+                     + [f'{c.get("label", "")}：{c.get("text", "")}' for c in it["copy"]]
+                     if it.get("copy") else [])),
+              } for it in groups[g]] for g in order]
+
+    copy_bar = ('<button class="btn" id="copyPages">复制全部落地页文案</button>'
+                if copy_all else "")
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -151,6 +208,15 @@ def build_prompt_html(spec):
   .copybox {{ border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:#fbfbfc; }}
   .line {{ font-size:15px; line-height:1.85; }}
   .prompt {{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13.5px; }}
+  .copysec {{ margin-top:12px; border:1px solid rgba(232,116,59,.30); border-radius:12px;
+    background:rgba(232,116,59,.045); padding:12px 14px 6px; }}
+  .copysec-t {{ font-size:12.5px; font-weight:700; color:var(--accent); margin-bottom:8px; }}
+  .cprows {{ display:flex; flex-direction:column; }}
+  .cprow {{ display:flex; gap:10px; align-items:flex-start; padding:7px 0;
+    border-top:1px dashed rgba(232,116,59,.22); font-size:14px; line-height:1.7; }}
+  .cprow:first-child {{ border-top:none; }}
+  .cplabel {{ flex:0 0 132px; color:#8a8f98; font-size:12.5px; padding-top:2px; }}
+  .cptext {{ flex:1; color:#1c1f23; }}
   .note {{ margin-top:10px; font-size:12.5px; color:var(--sub); line-height:1.6; }}
   .btns {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }}
   .btn {{ appearance:none; border:1px solid var(--line); background:#fff; color:#374151; font-size:13px;
@@ -174,6 +240,7 @@ def build_prompt_html(spec):
   </header>
   <div class="topbar">
     <button class="btn btn-primary" id="copyAll">复制全部 {len(items)} 条提示词</button>
+    {copy_bar}
   </div>
   {rule_html}
   {''.join(secs)}
@@ -184,6 +251,7 @@ def build_prompt_html(spec):
 (function () {{
   var DATA = JSON.parse(document.getElementById('pagedata').textContent);
   var ALL = {json.dumps(plain_all, ensure_ascii=False)};
+  var ALLCOPY = {json.dumps(copy_all, ensure_ascii=False)};
   var toast = document.getElementById('toast'), tid = null;
   function flash(m) {{ toast.textContent = m || '已复制'; toast.classList.add('show');
     clearTimeout(tid); tid = setTimeout(function(){{ toast.classList.remove('show') }}, 1400); }}
@@ -195,12 +263,17 @@ def build_prompt_html(spec):
     }} else {{ flash(fallback(t)?m:'复制失败，请手动选择'); }} }}
   document.querySelectorAll('.btn[data-g]').forEach(function (b) {{
     b.addEventListener('click', function () {{
-      var arr = DATA[+b.dataset.g] || [];
-      copy(arr[+b.dataset.s] || '', '提示词已复制');
+      var it = (DATA[+b.dataset.g] || [])[+b.dataset.s];
+      if (!it) return;
+      if (b.dataset.t === 'c') copy(it.c, '这一屏文案已复制');
+      else if (b.dataset.t === 'a') copy(it.a, '整屏（提示词 + 文案）已复制');
+      else copy(it.p, '提示词已复制');
     }});
   }});
   var ca = document.getElementById('copyAll');
   if (ca) ca.addEventListener('click', function () {{ copy(ALL.join('\\n\\n'), '全部提示词已复制'); }});
+  var cp = document.getElementById('copyPages');
+  if (cp) cp.addEventListener('click', function () {{ copy(ALLCOPY.join('\\n\\n'), '全部落地页文案已复制'); }});
 }})();
 </script>
 </body>
