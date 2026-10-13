@@ -12,13 +12,17 @@ spec.json 结构（ads 为数组，可一次渲染多条）：
       "scene": "/abs/path/scene.png",          // AI 生成或实拍的场景图（方形优先）
       "nickname": "橙意烘焙·橙橙",              // 广告头像昵称（= 人设名）
       "subtitle": "烘焙工作室主理人",           // 昵称下小字（可省略）
-      "avatar_text": "橙",                     // 头像单字（可省略，默认取昵称首字）
-      "avatar_color": [232, 126, 62],           // 头像底色（可省略）
+      "avatar_image": "/abs/path/face.png",     // 真人头像图（可省略；传了就用它，圆形裁切）
+      "avatar_text": "橙",                     // 头像单字（avatar_image 缺省时生效，默认取昵称首字）
+      "avatar_color": [232, 126, 62],           // 头像底色（avatar_image 缺省时生效）
+      "accent_color": [150, 205, 158],          // 大字强调色（可省略，默认暖橙）
       "copy": ["第一行钩子", "第二行证据", "第三行行动指令"],
       "dazi": [                                 // 配图上的大字，分段以支持强调色
         {"t": "168元", "accent": true},
         {"t": " · 当天取"}
       ],
+      "dazi_pos": "top",                        // 大字位置：top（默认）| bottom；人物头部靠上时用 bottom，避免压脸
+      "scene_crop": {"size": 0.62, "cx": 0.5, "cy": 0.0},  // 可选：再裁一层。size=保留边长占比；cx/cy=在剩余空间中的位置（0=靠左/靠上，1=靠右/靠下）
       "out": "/abs/path/效果图.png"
     }
   ]
@@ -62,27 +66,45 @@ def load_font(size, bold=False):
     raise RuntimeError("找不到可用中文字体，请确认 NotoSansCJKsc 或 Hiragino Sans GB 存在")
 
 
-def draw_dazi(img_rgba, segments):
-    """在配图顶部绘制大字：渐变压暗带 + 圆角深色底衬 + 分段强调色 + 细描边。"""
+def draw_dazi(img_rgba, segments, accent=None, pos="top"):
+    """在配图顶部（或底部）绘制大字：渐变压暗带 + 圆角深色底衬 + 分段强调色 + 细描边。
+
+    accent: 强调色 RGB 元组，用于适配品牌色；不传则用默认暖橙 ACCENT。
+    pos:    "top"（默认，压在画面顶部）| "bottom"（压底部）。
+            出镜人的头在画面上方时应改用 "bottom"，否则大字会挡住脸。
+    """
+    accent = tuple(accent) if accent else ACCENT
+    bottom = (pos == "bottom")
     overlay = Image.new("RGBA", img_rgba.size, (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
     band_h = 240
     for y in range(band_h):
-        od.line([(0, y), (IMG_W, y)], fill=(0, 0, 0, int(150 * (1 - y / band_h))))
+        alpha = int(150 * (1 - y / band_h))
+        yy = (IMG_W - 1 - y) if bottom else y
+        od.line([(0, yy), (IMG_W, yy)], fill=(0, 0, 0, alpha))
     img_rgba.alpha_composite(overlay)
 
     d = ImageDraw.Draw(img_rgba)
-    f = load_font(76, bold=True)
-    x0, y0, pad_x, pad_y = 40, 56, 30, 18
-    # 量总宽
-    total_w = 0
-    heights = []
-    for seg in segments:
-        bb = d.textbbox((0, 0), seg["t"], font=f, stroke_width=2)
-        total_w += bb[2] - bb[0]
-        heights.append(bb[3] - bb[1])
+    x0, pad_x, pad_y = 40, 30, 18
+    y0 = 56 if not bottom else None
+    # 可用宽度：右侧再留 10px 安全边距，避免大字被裁切
+    max_chip_w = IMG_W - (x0 - pad_x) - 10
+    # 自动缩放字号，保证大字完整落在卡片内（76 起，最小 40）
+    size, f, total_w, heights = 76, None, 0, []
+    while size >= 40:
+        f = load_font(size, bold=True)
+        total_w, heights = 0, []
+        for seg in segments:
+            bb = d.textbbox((0, 0), seg["t"], font=f, stroke_width=2)
+            total_w += bb[2] - bb[0]
+            heights.append(bb[3] - bb[1])
+        if total_w + pad_x * 2 <= max_chip_w:
+            break
+        size -= 2
     chip_w = total_w + pad_x * 2
     chip_h = max(heights) + pad_y * 2 + 8
+    if y0 is None:                      # 底部版式：底边留 56px 安全区
+        y0 = IMG_W - 56 - chip_h + pad_y
     # 圆角深色底衬（半透明，像手机贴纸）
     chip = Image.new("RGBA", img_rgba.size, (0, 0, 0, 0))
     ImageDraw.Draw(chip).rounded_rectangle(
@@ -92,14 +114,27 @@ def draw_dazi(img_rgba, segments):
 
     x = x0
     for seg in segments:
-        color = ACCENT if seg.get("accent") else (255, 255, 255)
+        color = accent if seg.get("accent") else (255, 255, 255)
         d.text((x, y0), seg["t"], font=f, fill=color,
                stroke_width=2, stroke_fill=(0, 0, 0, 110))
         bb = d.textbbox((0, 0), seg["t"], font=f, stroke_width=2)
         x += bb[2] - bb[0]
 
 
-def rounded_avatar(size, text, color):
+def rounded_avatar(size, text, color, image_path=None):
+    """圆形头像。传 image_path 时用真人照片（自动方形居中裁切），否则用单字色块。"""
+    if image_path and os.path.exists(image_path):
+        src = Image.open(image_path).convert("RGBA")
+        side = min(src.size)
+        src = src.crop(((src.width - side) // 2, (src.height - side) // 2,
+                        (src.width + side) // 2, (src.height + side) // 2))
+        src = src.resize((size * 4, size * 4), Image.LANCZOS).resize((size, size), Image.LANCZOS)
+        mask = Image.new("L", (size * 4, size * 4), 0)
+        ImageDraw.Draw(mask).ellipse([0, 0, size * 4 - 1, size * 4 - 1], fill=255)
+        mask = mask.resize((size, size), Image.LANCZOS)
+        av = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        av.paste(src, (0, 0), mask)
+        return av
     av = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(av)
     d.ellipse([0, 0, size - 1, size - 1], fill=tuple(color) + (255,))
@@ -112,11 +147,18 @@ def rounded_avatar(size, text, color):
 
 def render_ad(spec):
     img = Image.open(spec["scene"]).convert("RGBA")
-    side = min(img.size)
-    img = img.crop(((img.width - side) // 2, (img.height - side) // 2,
-                    (img.width + side) // 2, (img.height + side) // 2))
-    img = img.resize((IMG_W, IMG_W), Image.LANCZOS)
-    draw_dazi(img, spec["dazi"])
+    sc = spec.get("scene_crop") or {}
+    size_r = min(max(float(sc.get("size", 1.0)), 0.05), 1.0)
+    side = int(round(min(img.size) * size_r))
+    if size_r >= 1.0:
+        left, top = (img.width - side) // 2, (img.height - side) // 2
+    else:
+        fx = min(max(float(sc.get("cx", 0.0)), 0.0), 1.0)   # 0=靠左  1=靠右
+        fy = min(max(float(sc.get("cy", 0.0)), 0.0), 1.0)   # 0=靠上  1=靠下
+        left = int(round((img.width - side) * fx))
+        top = int(round((img.height - side) * fy))
+    img = img.crop((left, top, left + side, top + side)).resize((IMG_W, IMG_W), Image.LANCZOS)
+    draw_dazi(img, spec["dazi"], spec.get("accent_color"), spec.get("dazi_pos", "top"))
     img = img.convert("RGB")
 
     f_copy, f_meta = load_font(31), load_font(24)
@@ -129,7 +171,8 @@ def render_ad(spec):
 
     y = PAD
     av = rounded_avatar(88, spec.get("avatar_text") or spec["nickname"][0],
-                        spec.get("avatar_color", [232, 126, 62]))
+                        spec.get("avatar_color", [232, 126, 62]),
+                        spec.get("avatar_image"))
     card.paste(av, (PAD, y), av)
     cd.text((PAD + 106, y + 8), spec["nickname"], font=f_nick, fill=NICK_BLUE)
     if spec.get("subtitle"):
