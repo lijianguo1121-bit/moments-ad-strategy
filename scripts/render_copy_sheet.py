@@ -28,7 +28,15 @@ copy_spec.json 结构（ads 为数组）：
       ],
       "note": "配图：人设 + 后台大屏 + 大字"   // 配图说明（可省略）
     }
-  ]
+  ],
+  "rules": ["通用规范……"],              // 页面顶部的规范卡（可省略）
+  "labels": {                          // 按钮文案覆盖（可省略；海报/详情页等非"三行文案"场景用）
+    "copy_all": "复制全部 5 份海报文案",
+    "lines_all": "只复制全部 5 份正文",
+    "copy_one": "复制这一份",
+    "all_one": "复制这一份全部",
+    "note": "复制版式说明"
+  }
 }
 
 也可以传「配图/文生图提示词」结构（items 为数组，脚本自动识别）：
@@ -290,6 +298,14 @@ def build_copy_html(spec):
     subtitle = spec.get("subtitle") or f"共 {len(ads)} 条 · 点按钮直接复制"
     avatar_char = persona[:1] if persona else "广"
 
+    # 可选的按钮文案覆盖（海报/详情页等非"三行文案"场景用）
+    L = spec.get("labels") or {}
+    rule_html = ""
+    if spec.get("rules"):
+        li = "".join(f"<li>{esc(r)}</li>" for r in spec["rules"])
+        rule_html = (f"<section class='card ruletop'><div class='card-title'>通用规范（先读这几条）</div>"
+                     f"<ul class='rules'>{li}</ul></section>")
+
     # 顶部统计：公式覆盖
     formulas = [a.get("formula", "") for a in ads if a.get("formula")]
     formula_line = " ／ ".join(dict.fromkeys(formulas))
@@ -314,9 +330,9 @@ def build_copy_html(spec):
         copy_plain = "\n".join(copy)
         plain_all.append(f"文案 {no}（{ad.get('formula','')}）\n{copy_plain}")
 
-        btn_dazi = (f'<button class="btn" data-i="{i-1}" data-k="dazi">复制大字</button>'
+        btn_dazi = (f'<button class="btn" data-i="{i-1}" data-k="dazi">{esc(L.get("dazi", "复制大字"))}</button>'
                     if dazi_copy else "")
-        btn_note = (f'<button class="btn" data-i="{i-1}" data-k="note">复制配图说明</button>'
+        btn_note = (f'<button class="btn" data-i="{i-1}" data-k="note">{esc(L.get("note", "复制配图说明"))}</button>'
                     if ad.get("note") else "")
 
         cards.append(f"""
@@ -335,10 +351,10 @@ def build_copy_html(spec):
       {dazi}
       {note}
       <div class="btns">
-        <button class="btn btn-primary" data-i="{i-1}" data-k="copy">复制文案</button>
+        <button class="btn btn-primary" data-i="{i-1}" data-k="copy">{esc(L.get("copy_one", "复制文案"))}</button>
         {btn_dazi}
         {btn_note}
-        <button class="btn" data-i="{i-1}" data-k="all">复制这一条全部</button>
+        <button class="btn" data-i="{i-1}" data-k="all">{esc(L.get("all_one", "复制这一条全部"))}</button>
       </div>
     </section>""")
 
@@ -414,6 +430,8 @@ def build_copy_html(spec):
   }}
   .dazi .hl {{ font-weight:700; }}
   .note {{ margin-top:8px; font-size:12px; color:var(--sub); line-height:1.6; }}
+  .ruletop {{ border-left:4px solid var(--accent); }}
+  .rules {{ margin:10px 0 0; padding-left:20px; font-size:13.5px; color:#374151; line-height:1.8; }}
   .btns {{ display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }}
   .btn {{
     appearance:none; border:1px solid var(--line); background:#fff; color:#374151;
@@ -443,9 +461,10 @@ def build_copy_html(spec):
     <div class="formula-line">{esc(formula_line)}</div>
   </header>
   <div class="topbar">
-    <button class="btn btn-primary" id="copyAll">复制全部 {len(ads)} 条</button>
-    <button class="btn" id="copyAllLines">只复制全部三行文案</button>
+    <button class="btn btn-primary" id="copyAll">{esc(L.get("copy_all") or f"复制全部 {len(ads)} 条")}</button>
+    <button class="btn" id="copyAllLines">{esc(L.get("lines_all", "只复制全部三行文案"))}</button>
   </div>
+  {rule_html}
   {''.join(cards)}
   <footer>
     ⚠️ 文案中的数字、名额、案例数据上线前须确认真实性与可核验口径；<br>

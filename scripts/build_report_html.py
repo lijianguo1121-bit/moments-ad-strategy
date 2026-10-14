@@ -8,8 +8,8 @@
 build.json 结构：
 {
   "title": "朋友圈广告投放策略方案",
-  "brand": "IMAI · AI 投放营销",
-  "persona": "陈斯克",
+  "brand": "某某品牌 · 某某业务",
+  "persona": "人设名（如 王姐）",
   "out": "/abs/path/交付页.html",
   "docs": [
     {"key": "plan", "label": "投放策略方案", "path": "投放策略方案-XXX.md"},
@@ -143,7 +143,11 @@ def build(config_path):
     detail_cards, detail_blocks = [], []
     if cfg.get("detail_spec"):
         detail_cards, detail_blocks = make_cards(cfg["detail_spec"], len(copy_data), "方案")
-    all_blocks = copy_data + detail_blocks
+    poster_cards, poster_blocks = [], []
+    if cfg.get("poster_spec"):
+        poster_cards, poster_blocks = make_cards(
+            cfg["poster_spec"], len(copy_data) + len(detail_blocks), "海报")
+    all_blocks = copy_data + detail_blocks + poster_blocks
 
     # ---------- 效果图 ----------
     gal = []
@@ -182,7 +186,7 @@ def build(config_path):
         rows = "".join(f"<tr><th>{esc(k)}</th><td>{esc(v)}</td></tr>" for k, v in landing.get("spec", {}).items())
         landing_html = f"""
     <section id="sec-landing" class="block">
-      <h2 class="sec-title">六、详情页（落地页）</h2>
+      <h2 class="sec-title">七、详情页（落地页）</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
         详情页做成<strong>两张 9:16</strong>（上屏 + 下屏，可上下连排），两屏共用同一套色调。
         页面文件见 <code>landing/详情页.html</code>。点图可放大。
@@ -267,13 +271,15 @@ def build(config_path):
             landing_html = landing_html.replace("<!--PROMPT_SLOT-->", prompt_html, 1)
         else:
             landing_html = (f'<section id="sec-landing" class="block">'
-                            f'<h2 class="sec-title">六、详情页（落地页）</h2>{prompt_html}</section>')
+                            f'<h2 class="sec-title">七、详情页（落地页）</h2>{prompt_html}</section>')
 
     # ---------- 导航 ----------
     groups = [("概览", "sec-overview", []),
               ("可投放文案", "sec-copy", [])]
     if detail_cards:
-        groups.append(("详情页文案（5 套）", "sec-detail", []))
+        groups.append(("详情页文案", "sec-detail", []))
+    if poster_cards:
+        groups.append(("海报文案", "sec-poster", []))
     groups += [("广告效果图", "sec-shots", [])]
     if asset_cards:
         groups.append(("后台配图（素材）", "sec-assets", []))
@@ -294,7 +300,41 @@ def build(config_path):
 
     total_ads = len(copy_data)
     total_detail = len(detail_blocks)
+    total_poster = len(poster_blocks)
     total_shots = len(cfg.get("effects", []))
+    persona = cfg.get("persona") or "人设本人"
+
+    # ---------- 交付清单 / 上线 checklist（配置驱动，缺省用通用默认值） ----------
+    def _default_deliverables():
+        items = [(os.path.basename(P(cfg["out"])), "本页（自包含，可单独发送）")]
+        for d in cfg["docs"]:
+            items.append((d["path"], d["label"] + "原文"))
+        items.append(("文案-可复制-合规版.html", f"纯文案复制页（{total_ads} 条）"))
+        if detail_cards:
+            items.append(("详情页文案-可复制.html", f"详情页文案复制页（{total_detail} 套）"))
+        if poster_cards:
+            items.append(("海报文案-可复制.html", f"海报文案复制页（{total_poster} 份）"))
+        if cfg.get("landing_prompts"):
+            items.append((os.path.basename(cfg["landing_prompts"]), "配图提示词 + 该屏文案（可复制）"))
+        if total_shots:
+            items.append(("ad_effects/*.png", f"效果图原图（{total_shots} 张）"))
+        if assets:
+            items.append(("assets/*.png", f"后台配图成品（{len(assets)} 张）"))
+        if landing:
+            items.append(("landing/详情页.html + 两屏 PNG", "详情页（落地页）两屏 9:16"))
+        items.append((cfg["copy_spec"], "文案数据，改完重跑本页即可"))
+        return items
+
+    deliverables = cfg.get("deliverables") or _default_deliverables()
+    checklist = cfg.get("checklist") or [
+        "开户类目确认与资质补齐（营业执照 / 品牌授权书，如涉及第三方品牌）",
+        "落地页 ICP 备案，备案主体与广告账户一致；隐私勾选默认不勾选",
+        "出镜人肖像授权书；客户案例与业主出镜授权（家装类必查）",
+        "文案里数字 / 名额 / 活动的证明材料与活动备案",
+        "素材核对：无二维码、电话、微信号、URL；不画按钮元素",
+        "正式素材换本人实拍，按拍摄清单拍 3 场景 × 5 动作 × 2 尺寸 = 30 张",
+        "企微承接：昵称统一、自动首句、话术进快捷回复、10 分钟内真人回复",
+    ]
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -494,7 +534,8 @@ def build(config_path):
       <table>
         <tr><th>板块</th><th>内容</th></tr>
         <tr><td>朋友圈外层文案</td><td>{total_ads} 条，已通过违禁词机扫（0 处必拒审），可直接复制投放到广告后台</td></tr>
-        <tr><td>详情页文案</td><td>5 套（钩子复述 + 主视觉 + 补充行 + 3 条卖点），供详情页 / 落地页与后台配图取用，可一键复制给设计</td></tr>
+        <tr><td>详情页文案</td><td>{total_detail} 套（钩子复述 + 主视觉 + 补充行 + 3 条卖点），供详情页 / 落地页与后台配图取用，可一键复制给设计</td></tr>
+        <tr><td>海报文案</td><td>{total_poster} 份（大字 + 补充行 + 3 条卖点 + 收口），每份可独立成一张竖版海报，按人群/痛点分可 A/B</td></tr>
         <tr><td>广告效果图</td><td>{total_shots} 张朋友圈卡片效果图（每个计划 1 张），用于确认方向（正式投放请换真人实拍）</td></tr>
         <tr><td>后台配图</td><td>横版 16:9 <strong>详情页首屏配图</strong> × 2（A/B 两版人群）+ 竖版 9:16 <strong>钩子海报</strong> × 2</td></tr>
         <tr><td>投放策略方案</td><td>诊断 → 人设 → 文案 → 素材 → 承接 → 投放计划 → 优化预案 → 合规 → IP 建议 → 行动清单</td></tr>
@@ -518,33 +559,50 @@ def build(config_path):
 
     {''.join(f'''
     <section id="sec-detail" class="block">
-      <h2 class="sec-title">三、详情页（落地页）文案 · 5 套</h2>
+      <h2 class="sec-title">三、详情页（落地页）文案 · {total_detail} 套</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
         每套 = <strong>钩子复述 + 主视觉 + 补充行 + 3 条卖点</strong>，直接对应详情页首屏的排布顺序；
-        人设条（陈斯克 · AI 营销实战讲师）与信任条（腾讯广告同一账户体系 · 正规开户通道）五套通用。
-        详情页是网页，不受外层 40 字限制，但仍须避开极限词与承诺。
+        人设条与信任条各套通用。详情页是网页，不受外层 40 字限制，但仍须避开极限词与承诺。
       </p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
-        <button class="btn btn-p" data-range="{len(copy_data)},{len(all_blocks)}">复制全部 5 套</button>
+        <button class="btn btn-p" data-range="{len(copy_data)},{len(copy_data) + len(detail_blocks)}">复制全部 {total_detail} 套</button>
       </div>
       <div class="cgrid">{''.join(detail_cards)}</div>
       <blockquote style="margin-top:18px">
-        想把这 5 套做成成品图：在 <code>build_ad_assets.py</code> 的 <code>VARIANTS</code> 里替换
+        想把这 {total_detail} 套做成成品图：在 <code>build_ad_assets.py</code> 的 <code>VARIANTS</code> 里替换
         <code>hook / big / rule / points</code> 四个字段重跑即可，<strong>复用同一张背景图，零额外积分</strong>。
       </blockquote>
     </section>''' if detail_cards else '')}
 
-    <section id="sec-shots" class="block">
-      <h2 class="sec-title">四、广告效果图（{total_shots} 张）</h2>
+    {''.join(f'''
+    <section id="sec-poster" class="block">
+      <h2 class="sec-title">四、海报文案 · {total_poster} 份</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
-        点图可放大。图为 AI 生成示意 + 卡片合成，<strong>仅用于确认方向</strong>；正式投放必须换成陈斯克本人实拍素材。
+        每份 = <strong>大字（主视觉） + 补充行 + 3 条卖点 + 底部收口</strong>，每份都能独立成一张竖版海报，
+        按不同人群/痛点分，可直接 A/B 铺开。海报上的字是<strong>印在图里的</strong>，不受外层 40 字限制，
+        但仍须避开极限词、承诺与对比宣称。
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+        <button class="btn btn-p" data-range="{len(copy_data) + len(detail_blocks)},{len(all_blocks)}">复制全部 {total_poster} 份</button>
+      </div>
+      <div class="cgrid">{''.join(poster_cards)}</div>
+      <blockquote style="margin-top:18px">
+        需要把某一份做成成品海报：改 <code>build_ad_assets.py</code> 里 <code>VARIANTS</code> 的
+        <code>tall_*</code> 字段即可，竖版 1080×1920，<strong>与钩子海报共用同一套版式和背景</strong>。
+      </blockquote>
+    </section>''' if poster_cards else '')}
+
+    <section id="sec-shots" class="block">
+      <h2 class="sec-title">五、广告效果图（{total_shots} 张）</h2>
+      <p style="color:var(--sub);font-size:13.5px;margin-top:0">
+        点图可放大。图为 AI 生成示意 + 卡片合成，<strong>仅用于确认方向</strong>；正式投放必须换成 {esc(persona)} 本人实拍素材。
       </p>
       <div class="gal">{''.join(gal)}</div>
     </section>
 
     {''.join(f'''
     <section id="sec-assets" class="block">
-      <h2 class="sec-title">五、后台配图（投放素材）</h2>
+      <h2 class="sec-title">六、后台配图（投放素材）</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
         每个版式各 <strong>2 张（A/B 两版）</strong>：<strong>横版 16:9 是详情页（落地页）首屏配图</strong>，
         按「人设 → 钩子 → 利益 → 证据 → 信任」排布；<strong>竖版 9:16 是钩子海报</strong>，用于私聊/群发引流。点图可放大。
@@ -553,7 +611,7 @@ def build(config_path):
       <blockquote style="margin-top:20px">
         <strong>素材合规提醒</strong>：四张图均<strong>未放二维码、电话、微信号、按钮元素</strong>（平台禁止，OCR 会抓）；
         图片文字占比压在低位，不做"大字报"。详情页的真实按钮放在图片下方，不要画在图里。
-        正式投放建议把 AI 图换成<strong>陈斯克本人实拍</strong>——真人才是信任核心。
+        正式投放建议把 AI 图换成<strong>{esc(persona)}本人实拍</strong>——真人才是信任核心。
       </blockquote>
     </section>''' if asset_cards else '')}
 
@@ -564,21 +622,11 @@ def build(config_path):
     <section id="sec-deliver" class="block">
       <h2 class="sec-title">交付清单</h2>
       <ul class="deliver">
-        <li><code>IMAI-朋友圈广告投放方案.html</code> —— 本页（自包含，可单独发送）</li>
-        <li><code>投放策略方案-IMAI-AI投放营销.md</code> —— 方案原文</li>
-        <li><code>合规审核报告-IMAI-AI投放营销.md</code> —— 审核与改写对照</li>
-        <li><code>文案-可复制-合规版.html</code> —— 纯文案复制页</li>
-        <li><code>ad_effects/*.png</code> —— 效果图原图（{total_shots} 张）</li>
-        <li><code>copy_spec_compliant.json</code> —— 文案数据，改完重跑本页即可</li>
+        {''.join(f'<li><code>{esc(f)}</code> —— {esc(d)}</li>' for f, d in deliverables)}
       </ul>
       <h3>上线前 checklist</h3>
       <ul>
-        <li>☐ 开户类目确认（建议「软件工具 / 商务服务」）与资质补齐</li>
-        <li>☐ 落地页 ICP 备案 + 可勾选隐私协议</li>
-        <li>☐ 出镜人肖像授权书、客户数据与回单授权</li>
-        <li>☐ 金额类数据证明（140万 / 0.03元 / 1万次300块）与活动备案</li>
-        <li>☐ 正式素材换真人实拍，重拍 3 场景 × 5 动作 × 2 尺寸 = 30 张</li>
-        <li>☐ 企微承接：昵称统一、自动首句、5 条话术进快捷回复、10 分钟内真人回复</li>
+        {''.join(f'<li>☐ {esc(c)}</li>' for c in checklist)}
       </ul>
     </section>
 
