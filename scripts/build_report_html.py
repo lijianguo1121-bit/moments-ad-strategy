@@ -494,7 +494,7 @@ def build(config_path):
       <table>
         <tr><th>板块</th><th>内容</th></tr>
         <tr><td>朋友圈外层文案</td><td>{total_ads} 条，已通过违禁词机扫（0 处必拒审），可直接复制投放到广告后台</td></tr>
-        <tr><td>详情页配图文案</td><td>5 套（钩子复述 + 主视觉 + 补充行 + 3 条卖点），对应 16:9 详情页首屏，可一键复制给设计</td></tr>
+        <tr><td>详情页文案</td><td>5 套（钩子复述 + 主视觉 + 补充行 + 3 条卖点），供详情页 / 落地页与后台配图取用，可一键复制给设计</td></tr>
         <tr><td>广告效果图</td><td>{total_shots} 张朋友圈卡片效果图（每个计划 1 张），用于确认方向（正式投放请换真人实拍）</td></tr>
         <tr><td>后台配图</td><td>横版 16:9 <strong>详情页首屏配图</strong> × 2（A/B 两版人群）+ 竖版 9:16 <strong>钩子海报</strong> × 2</td></tr>
         <tr><td>投放策略方案</td><td>诊断 → 人设 → 文案 → 素材 → 承接 → 投放计划 → 优化预案 → 合规 → IP 建议 → 行动清单</td></tr>
@@ -518,7 +518,7 @@ def build(config_path):
 
     {''.join(f'''
     <section id="sec-detail" class="block">
-      <h2 class="sec-title">三、详情页（16:9）配图文案 · 5 套</h2>
+      <h2 class="sec-title">三、详情页（落地页）文案 · 5 套</h2>
       <p style="color:var(--sub);font-size:13.5px;margin-top:0">
         每套 = <strong>钩子复述 + 主视觉 + 补充行 + 3 条卖点</strong>，直接对应详情页首屏的排布顺序；
         人设条（陈斯克 · AI 营销实战讲师）与信任条（腾讯广告同一账户体系 · 正规开户通道）五套通用。

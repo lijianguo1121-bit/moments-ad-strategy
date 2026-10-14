@@ -5,6 +5,7 @@
 - 横版 16:9（1920×1080）→ **详情页首屏配图**：人设条 → 复述钩子 → 主利益 → 三个卖点 → 信任条
 - 竖版 9:16（1080×1920）→ **钩子海报**：痛点钩子 → 主视觉 → 三个卖点 → 人设收口
 
+客户：银川 · 老徐装饰装修（摩恩卫浴）
 输出：assets/后台配图-16x9-A.png、-16x9-B.png、-9x16-A.png、-9x16-B.png
 用法：python3 build_ad_assets.py
 """
@@ -26,32 +27,33 @@ if not OUT.exists():
 ACCENT = "#FF8A3D"
 FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif'
 
-PERSON = {"name": "陈斯克", "role": "AI 营销实战讲师", "initial": "陈"}
-BRAND = "IMAI · AI 投放营销"
+PERSON = {"name": "银川装修老徐", "role": "装修卫浴30年", "initial": "徐"}
+BRAND = "银川装修老徐 · 摩恩卫浴"
+TRUST = ["银川本地门店 30 年", "签约价即结算价", "自己的师傅上门"]
 
-# A 版 = 中小企业老板（获客成本焦虑）；B 版 = 实体门店老板（存量会员沉睡）
+# A 版 = 新交房业主（怕装完没人管）；B 版 = 老房换卫浴（怕买贵买假）
 VARIANTS = {
     "A": {
-        "hook": ("广告费花了，", "客户一个没来？"),
-        "big": ("3分钱", "一次曝光"),
-        "rule": "看到才扣，没看到不扣",
-        "points": ["名单导进去就能投", "成交一个，停投一个", "覆盖 15 个腾讯系点位"],
-        "kicker": "AI 自动投放",
-        "tall_hook": ("广告费花了，", "客户没来？"),
-        "tall_big": ("3分钱", "一次曝光"),
-        "tall_small": "看到才扣，没看到不扣",
-        "tall_points": ["名单导进去就能投", "成交一个，停投一个", "覆盖 15 个腾讯系点位"],
+        "hook": ("装完了出问题，", "你还找得到人吗？"),
+        "big": ("30年", "店就在这儿"),
+        "rule": "银川本地门店，出问题我自己上门",
+        "points": ["签约价=结算价，增项先签字", "自己的师傅装，不外包", "兴庆金凤西夏，都能上门"],
+        "kicker": "本地老店",
+        "tall_hook": ("装完了出问题，", "还找得到人吗？"),
+        "tall_big": ("30年", "店就在这儿"),
+        "tall_small": "银川本地门店，出问题我自己上门",
+        "tall_points": ["签约价=结算价", "自己的师傅不外包", "银川本地，随时能来"],
     },
     "B": {
-        "hook": ("店里几千个会员，", "还睡着？"),
-        "big": ("成交一个", "停投一个"),
-        "rule": "名单导进去，AI 替你天天跟",
-        "points": ["老客自己回店预约", "不用群发，不用打电话", "3分钱一次曝光"],
-        "kicker": "老客唤醒",
-        "tall_hook": ("老客户为什么，", "不再来了？"),
-        "tall_big": ("名单导进去", "就能投"),
-        "tall_small": "不用群发，不用打电话",
-        "tall_points": ["老客自己回店预约", "成交一个，停投一个", "3分钱一次曝光"],
+        "hook": ("旧马桶花洒，", "还在凑合用吗？"),
+        "big": ("看货", "再定"),
+        "rule": "仓库现货，可当场核对",
+        "points": ["先上门看现场，再报方案", "拆旧、安装、清运一起做", "换下来的旧件给你看"],
+        "kicker": "老房换新",
+        "tall_hook": ("家里卫浴用了，", "多少年了？"),
+        "tall_big": ("该换", "看得出"),
+        "tall_small": "做装修30年，不忽悠你换",
+        "tall_points": ["先看现场再报价", "拆旧安装一起做", "换下来的旧件给你看"],
     },
 }
 
@@ -80,6 +82,7 @@ def data_uri(path, target_w, target_h, focus=(0.5, 0.5)):
 # ------------------------------------------------- 16:9 详情页首屏
 def html_wide(bg, v):
     pts = "".join(f'<div class="li"><span class="dot"></span>{p}</div>' for p in v["points"])
+    trust = "".join(f"<span>{t}</span>" for t in TRUST)
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{{margin:0;padding:0;box-sizing:border-box}}
 html,body{{width:1920px;height:1080px;overflow:hidden}}
@@ -124,7 +127,7 @@ h1 .br{{font-size:74px}}
     <div class="list">{pts}</div>
   </div>
   <div class="trust">
-    <div class="tleft"><span>腾讯广告同一账户体系</span><span>正规开户通道</span></div>
+    <div class="tleft">{trust}</div>
     <div class="tright">{BRAND}</div>
   </div>
 </div></body></html>"""
@@ -180,7 +183,7 @@ h2{{margin-top:28px;font-size:76px;line-height:1.18;font-weight:800;letter-spaci
       <div class="avatar">{PERSON['initial']}</div>
       <div><div class="fname">{PERSON['name']}</div><div class="frole">{PERSON['role']}</div></div>
     </div>
-    <div class="brand">腾讯广告<br>同一账户体系</div>
+    <div class="brand">银川本地门店<br>30年 · 自己师傅</div>
   </div>
 </div></body></html>"""
 
@@ -199,9 +202,8 @@ def shot(pw, html, out, w, h):
 
 
 def main():
-    bg_wide = data_uri(SRC / "bg_wide.png", 1920, 1080, focus=(0.55, 0.42))
+    bg_wide = data_uri(SRC / "bg_wide.png", 1920, 1080, focus=(0.62, 0.40))
     bg_tall = data_uri(SRC / "bg_tall.png", 1080, 1920, focus=(0.5, 0.30))
-    # 先清掉旧命名，避免混淆
     for old in OUT.glob("后台配图-*.png"):
         old.unlink()
     with sync_playwright() as pw:

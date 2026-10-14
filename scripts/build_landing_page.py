@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """生成「详情页（落地页）」：**两张 9:16**（1080×1920），上屏 + 下屏。
 
+客户：银川 · 老徐装饰装修（摩恩卫浴）
 - 上屏：钩子 + 4 个痛点围绕人物 → 品牌区（Logo + 主口号）
-- 下屏：4 个能力块 → 行业覆盖 12 格 → 选择理由 2×2
+- 下屏：4 个能力块 → 区域覆盖 12 格 → 选择理由 2×2
 - 两屏共用同一套浅蓝→白渐变与橙色点缀，**前后色调呼应、可无缝连排**
 - 不做留资表单（走投放后台的【表单】/【商家微信】组件）
 
@@ -36,24 +37,24 @@ W, H = 1080, 1920
 FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif'
 
 PAINS = [
-    ("获客成本高", "投流越投越贵，钱是按「动作」花的，不是按「结果」花的"),
-    ("同行内卷", "几百个同行同一天说一样的话，平台一眼就识破"),
-    ("不敢试新渠道", "怕投进去打水漂，一次次错过窗口期"),
-    ("没人跟得住", "业务员跟三次就放弃，客户第 30 天才想起来"),
+    ("买贵了", "同款差价能到一半，你不知道"),
+    ("买到假货", "不是标着牌子的都是正品"),
+    ("装得不专业", "漏水返味，多半是安装的问题"),
+    ("没人管售后", "装完两年出问题，找谁都不认"),
 ]
 ABILITIES = [
-    ("1", "让 AI 替你找人", "名单导进去，自动建模定向"),
-    ("2", "让 AI 替你投放", "0.03元一次曝光，看到才扣"),
-    ("3", "让 AI 替你跟单", "每天出现一次，跟满 60 天"),
-    ("4", "让 AI 替你复盘", "每一笔花在哪，后台都看得见"),
+    ("1", "先上门看现场", "尺寸、水压、排水一次看明白"),
+    ("2", "帮你验货", "进货凭证和包装当场核对"),
+    ("3", "帮你盯安装", "下料、安装、验收我都到"),
+    ("4", "出问题我上门", "不推给厂家，我先去"),
 ]
-INDUSTRIES = ["餐饮门店", "美业连锁", "教育培训", "家装建材", "汽车服务", "健身运动",
-              "本地生活", "电商零售", "批发贸易", "制造工业", "连锁加盟", "企业服务"]
+AREAS = ["兴庆区", "金凤区", "西夏区", "贺兰县", "永宁县", "灵武市",
+         "新交房小区", "二手房翻新", "老房换卫浴", "全屋整装", "局部改造", "商铺工装"]
 REASONS = [
-    ("0.03元", "一次曝光", "看到才扣，没看到不扣"),
-    ("成交一个", "停投一个", "不打扰老客户，也不多花钱"),
-    ("15 个", "腾讯系点位", "手机、电脑、大屏都能刷到"),
-    ("你只出", "一份名单", "诊断、素材、开户我们走"),
+    ("30年", "店一直在这儿", "在银川做装修卫浴，没换过地方"),
+    ("签约价", "即结算价", "增项先签字，不临时加钱"),
+    ("自己师傅", "不外包", "装完出问题，我上门"),
+    ("现货", "就在店里", "仓库有货，可当场看实物"),
 ]
 
 
@@ -148,7 +149,7 @@ def build_html():
     abil = "".join(f'<div class="ab"><div class="abn">{n}</div>'
                    f'<div class="abt">{t}</div><div class="abd">{d}</div></div>'
                    for n, t, d in ABILITIES)
-    inds = "".join(f'<div class="ind">{i}</div>' for i in INDUSTRIES)
+    inds = "".join(f'<div class="ind">{i}</div>' for i in AREAS)
     reasons = "".join(f'<div class="rs"><div class="rsb"><span>{a}</span>'
                       f'<em>{b}</em></div><div class="rsd">{c}</div></div>'
                       for a, b, c in REASONS)
@@ -156,25 +157,25 @@ def build_html():
 
     return f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=1080">
-<title>IMAI · AI 投放营销 · 详情页（两屏 9:16）</title>
+<title>银川装修老徐 · 详情页（两屏 9:16）</title>
 <style>{css}</style></head>
 <body>
 
 <!-- ===== 上屏（第一张 9:16）===== -->
 <div class="screen" id="s1">
   <div class="pad s1-head">
-    <div class="tag">IMAI · AI 投放营销</div>
-    <div class="h1">还在花钱买线索的老板，<em>注意了</em></div>
-    <div class="sub">广告费花出去了，是不是卡在这四件事？</div>
+    <div class="tag">银川 · 老徐装饰装修</div>
+    <div class="h1">装完了出问题，<em>你还找得到人吗</em></div>
+    <div class="sub">在银川做装修卫浴30年，店就在这儿</div>
   </div>
   <div class="pad painbox" style="padding-left:46px;padding-right:46px">
     <div class="person"><img src="{img}" alt=""></div>
     {pains}
   </div>
   <div class="brand">
-    <div class="logo"><i></i>IMAI · AI 投放营销</div>
-    <div class="h2">让 AI <em>替你投广告</em></div>
-    <div class="sub">腾讯广告同一账户体系 · 名单导进去，AI 自动跑</div>
+    <div class="logo"><i></i>银川装修老徐</div>
+    <div class="h2">装了30年，<em>出问题我上门</em></div>
+    <div class="sub">银川本地门店 · 自己的师傅 · 签约价即结算价</div>
   </div>
 </div>
 
@@ -184,14 +185,14 @@ def build_html():
     <div class="abs">{abil}</div>
 
     <div class="blk">
-      <div class="tag"><span class="mark"></span>覆盖各类企业需求</div>
-      <div class="h2">只要有名单，就能跑起来</div>
+      <div class="tag"><span class="mark"></span>银川这些地方我们都跑</div>
+      <div class="h2">兴庆金凤西夏，都能上门</div>
       <div class="inds">{inds}</div>
     </div>
 
     <div class="blk">
-      <div class="tag"><span class="mark"></span>选择我们的理由</div>
-      <div class="h2">便宜、精准、可控</div>
+      <div class="tag"><span class="mark"></span>为什么找老徐</div>
+      <div class="h2">30年、本地、自己人</div>
       <div class="rss">{reasons}</div>
     </div>
   </div>
