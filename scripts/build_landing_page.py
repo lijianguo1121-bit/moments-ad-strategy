@@ -2,70 +2,128 @@
 # -*- coding: utf-8 -*-
 """生成「详情页（落地页）」：**两张 9:16**（1080×1920），上屏 + 下屏。
 
-客户：银川 · 老徐装饰装修（摩恩卫浴）
 - 上屏：钩子 + 4 个痛点围绕人物 → 品牌区（Logo + 主口号）
 - 下屏：4 个能力块 → 区域覆盖 12 格 → 选择理由 2×2
 - 两屏共用同一套浅蓝→白渐变与橙色点缀，**前后色调呼应、可无缝连排**
 - 不做留资表单（走投放后台的【表单】/【商家微信】组件）
 
-输出：
-  landing/详情页.html              —— 两屏叠放的页面（可直接打开）
-  landing/详情页-上屏-9x16.png      —— 1080 × 1920
-  landing/详情页-下屏-9x16.png      —— 1080 × 1920
+用法：
+    python3 build_landing_page.py --spec landing_spec.json
+    python3 build_landing_page.py --spec landing_spec.json --out /abs/landing/dir
+
+spec 结构见 references/html-delivery.md 第三节。输出默认写到**当前工作目录**下的
+`landing/`（不再写进技能目录）：
+    landing/详情页.html                 —— 两屏叠放的页面（可直接打开）
+    landing/详情页-上屏-9x16.png         —— 1080 × 1920
+    landing/详情页-下屏-9x16.png         —— 1080 × 1920
 
 配套提示词只有 2 条，见 landing_prompts.json。
-用法：python3 build_landing_page.py
 """
+import argparse
 import base64
 import io
+import json
 import os
 import pathlib
+import re
+import sys
 
 from PIL import Image
 from playwright.sync_api import sync_playwright
 
-HERE = pathlib.Path(__file__).parent
-SRC = HERE / "assets_src"
-OUT = HERE / "landing"
-if not OUT.exists():
-    os.makedirs(OUT)
-
-ACCENT = "#E8722F"
-ACCENT_2 = "#FF9A52"
-INK = "#16233A"
+ACCENT_DEFAULT = "#E8722F"
+ACCENT2_DEFAULT = "#FF9A52"
+INK_DEFAULT = "#16233A"
 W, H = 1080, 1920
 FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans CJK SC","Microsoft YaHei",sans-serif'
 
-PAINS = [
-    ("买贵了", "同款差价能到一半，你不知道"),
-    ("买到假货", "不是标着牌子的都是正品"),
-    ("装得不专业", "漏水返味，多半是安装的问题"),
-    ("没人管售后", "装完两年出问题，找谁都不认"),
-]
-ABILITIES = [
-    ("1", "先上门看现场", "尺寸、水压、排水一次看明白"),
-    ("2", "帮你验货", "进货凭证和包装当场核对"),
-    ("3", "帮你盯安装", "下料、安装、验收我都到"),
-    ("4", "出问题我上门", "不推给厂家，我先去"),
-]
-AREAS = ["兴庆区", "金凤区", "西夏区", "贺兰县", "永宁县", "灵武市",
-         "新交房小区", "二手房翻新", "老房换卫浴", "全屋整装", "局部改造", "商铺工装"]
-REASONS = [
-    ("30年", "店一直在这儿", "在银川做装修卫浴，没换过地方"),
-    ("签约价", "即结算价", "增项先签字，不临时加钱"),
-    ("自己师傅", "不外包", "装完出问题，我上门"),
-    ("现货", "就在店里", "仓库有货，可当场看实物"),
-]
+
+def die(msg):
+    sys.exit("spec 有误：" + msg)
 
 
-def pain_img():
-    im = Image.open(SRC / "pain_man.png").convert("RGB")
+def load_spec(path):
+    p = pathlib.Path(path)
+    if not p.exists():
+        die(f"找不到 spec 文件 {p}")
+    spec = json.loads(p.read_text(encoding="utf-8"))
+
+    s1, s2 = spec.get("screen1"), spec.get("screen2")
+    if not isinstance(s1, dict):
+        die("缺少 `screen1`")
+    if not isinstance(s2, dict):
+        die("缺少 `screen2`")
+
+    for key in ("tag", "title", "subtitle", "pains", "brand_logo", "brand_title", "brand_sub"):
+        if key not in s1:
+            die(f"`screen1` 缺少 `{key}`")
+    if len(s1["title"]) != 2:
+        die("`screen1.title` 必须是 2 个元素的数组（前段 / 强调段）")
+    if len(s1["brand_title"]) != 2:
+        die("`screen1.brand_title` 必须是 2 个元素的数组")
+    if len(s1["pains"]) != 4:
+        die(f"`screen1.pains` 必须正好 4 条（版面是按 4 张痛点卡定位的），当前 {len(s1['pains'])} 条")
+    for i, pit in enumerate(s1["pains"]):
+        if not (isinstance(pit, (list, tuple)) and len(pit) == 2):
+            die(f"`screen1.pains[{i}]` 必须是 [标题, 说明] 两个元素")
+
+    for key in ("abilities", "area_tag", "area_title", "areas",
+                "reason_tag", "reason_title", "reasons"):
+        if key not in s2:
+            die(f"`screen2` 缺少 `{key}`")
+    if len(s2["abilities"]) != 4:
+        die(f"`screen2.abilities` 必须正好 4 条，当前 {len(s2['abilities'])} 条")
+    for i, ab in enumerate(s2["abilities"]):
+        if not (isinstance(ab, (list, tuple)) and len(ab) == 3):
+            die(f"`screen2.abilities[{i}]` 必须是 [序号, 标题, 说明] 三个元素")
+    if len(s2["reasons"]) != 4:
+        die(f"`screen2.reasons` 必须正好 4 条（2×2 版式），当前 {len(s2['reasons'])} 条")
+    for i, rs in enumerate(s2["reasons"]):
+        if not (isinstance(rs, (list, tuple)) and len(rs) == 3):
+            die(f"`screen2.reasons[{i}]` 必须是 [主词, 副词, 说明] 三个元素")
+    if len(s2["areas"]) % 3 != 0:
+        print(f"提示：`screen2.areas` 有 {len(s2['areas'])} 项，3 列网格会留下空位（推荐 12 项）")
+
+    # 人物图可选：没有就跳过人物块（不崩）
+    pi = s1.get("person_image")
+    if pi and not pathlib.Path(pi).exists():
+        print(f"提示：`screen1.person_image` 指向的文件不存在（{pi}），本次不放人物图")
+        s1["person_image"] = None
+    return spec
+
+
+def person_uri(path, crop_bottom):
+    """人物图裁切 + 转 base64。
+
+    crop_bottom < 1.0 会裁掉底部（旧做法用它去掉生成水印）——⚠️ 若用的是 AI 生成人物图，
+    **不要靠裁图去掉「AI 生成」标注**，那属于刻意规避标注；改用实拍，或保留标注。
+    默认 1.0（不裁）。
+    """
+    im = Image.open(path).convert("RGB")
     w, h = im.size
-    im = im.crop((0, 0, w, int(h * 0.90)))              # 去掉右下角水印
-    im = im.resize((int(im.width * 1.05), int(im.height * 1.05)), Image.LANCZOS)
+    if crop_bottom < 1.0:
+        im = im.crop((0, 0, w, int(h * crop_bottom)))
     buf = io.BytesIO()
     im.save(buf, "JPEG", quality=92)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def sanity_check_css(css):
+    """CSS 静默失效自查。
+
+    ⚠️ 一个未闭合的引号会让 CSS 解析器把**其后所有规则**当成字符串吞掉，
+    表现是「同一条规则里 width 生效、height 消失」——版面全乱但不报任何错。
+    （本脚本踩过：FONT 常量末尾多一个 `"`，导致 .screen 的 height:1920px 失效，
+    截图出来只有 1298px 高。）所以出图前后都卡一道。
+    """
+    nq = css.count('"')
+    if nq % 2:
+        die(f"CSS 双引号数量为奇数（{nq} 个），整段样式会被浏览器丢弃——检查 FONT 等拼接常量")
+    if css.count("{") != css.count("}"):
+        die(f"CSS 花括号不配对：{css.count('{')} 个 {{ / {css.count('}')} 个 }}")
+    left = re.findall(r"__[A-Z0-9_]+__", css)
+    if left:
+        die(f"CSS 里还有未替换的占位符：{sorted(set(left))}")
 
 
 CSS = """
@@ -136,46 +194,53 @@ body{background:#E9EFF6;font-family:__FONT__;color:__INK__;-webkit-font-smoothin
 """
 
 
-def build_html():
-    img = pain_img()
-    left, right = PAINS[0::2], PAINS[1::2]
+def build_html(spec, person_data_uri):
+    s1, s2 = spec["screen1"], spec["screen2"]
+    accent = spec.get("accent", ACCENT_DEFAULT)
+    accent2 = spec.get("accent2", ACCENT2_DEFAULT)
+    ink = spec.get("ink", INK_DEFAULT)
 
     def pcard(p, side, top):
         return (f'<div class="pcard {side}" style="top:{top}px">'
                 f'<div class="pt">{p[0]}</div><div class="pd">{p[1]}</div></div>')
 
-    pains = (pcard(left[0], "left", 0) + pcard(right[0], "right", 18) +
-             pcard(left[1], "left", 330) + pcard(right[1], "right", 316))
+    pains = (pcard(s1["pains"][0], "left", 0) + pcard(s1["pains"][1], "right", 18) +
+             pcard(s1["pains"][2], "left", 330) + pcard(s1["pains"][3], "right", 316))
     abil = "".join(f'<div class="ab"><div class="abn">{n}</div>'
                    f'<div class="abt">{t}</div><div class="abd">{d}</div></div>'
-                   for n, t, d in ABILITIES)
-    inds = "".join(f'<div class="ind">{i}</div>' for i in AREAS)
+                   for n, t, d in s2["abilities"])
+    inds = "".join(f'<div class="ind">{i}</div>' for i in s2["areas"])
     reasons = "".join(f'<div class="rs"><div class="rsb"><span>{a}</span>'
                       f'<em>{b}</em></div><div class="rsd">{c}</div></div>'
-                      for a, b, c in REASONS)
-    css = CSS.replace("__FONT__", FONT).replace("__ACCENT2__", ACCENT_2).replace("__ACCENT__", ACCENT)
+                      for a, b, c in s2["reasons"])
+
+    person = (f'<div class="person"><img src="{person_data_uri}" alt=""></div>'
+              if person_data_uri else "")
+    css = (CSS.replace("__FONT__", FONT).replace("__ACCENT2__", accent2)
+              .replace("__ACCENT__", accent).replace("__INK__", ink))
+    sanity_check_css(css)
 
     return f"""<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=1080">
-<title>银川装修老徐 · 详情页（两屏 9:16）</title>
+<title>{spec.get('page_title', '详情页（两屏 9:16）')}</title>
 <style>{css}</style></head>
 <body>
 
 <!-- ===== 上屏（第一张 9:16）===== -->
 <div class="screen" id="s1">
   <div class="pad s1-head">
-    <div class="tag">银川 · 老徐装饰装修</div>
-    <div class="h1">装完了出问题，<em>你还找得到人吗</em></div>
-    <div class="sub">在银川做装修卫浴30年，店就在这儿</div>
+    <div class="tag">{s1['tag']}</div>
+    <div class="h1">{s1['title'][0]}<em>{s1['title'][1]}</em></div>
+    <div class="sub">{s1['subtitle']}</div>
   </div>
   <div class="pad painbox" style="padding-left:46px;padding-right:46px">
-    <div class="person"><img src="{img}" alt=""></div>
+    {person}
     {pains}
   </div>
   <div class="brand">
-    <div class="logo"><i></i>银川装修老徐</div>
-    <div class="h2">装了30年，<em>出问题我上门</em></div>
-    <div class="sub">银川本地门店 · 自己的师傅 · 签约价即结算价</div>
+    <div class="logo"><i></i>{s1['brand_logo']}</div>
+    <div class="h2">{s1['brand_title'][0]}<em>{s1['brand_title'][1]}</em></div>
+    <div class="sub">{s1['brand_sub']}</div>
   </div>
 </div>
 
@@ -185,14 +250,14 @@ def build_html():
     <div class="abs">{abil}</div>
 
     <div class="blk">
-      <div class="tag"><span class="mark"></span>银川这些地方我们都跑</div>
-      <div class="h2">兴庆金凤西夏，都能上门</div>
+      <div class="tag"><span class="mark"></span>{s2['area_tag']}</div>
+      <div class="h2">{s2['area_title']}</div>
       <div class="inds">{inds}</div>
     </div>
 
     <div class="blk">
-      <div class="tag"><span class="mark"></span>为什么找老徐</div>
-      <div class="h2">30年、本地、自己人</div>
+      <div class="tag"><span class="mark"></span>{s2['reason_tag']}</div>
+      <div class="h2">{s2['reason_title']}</div>
       <div class="rss">{reasons}</div>
     </div>
   </div>
@@ -203,8 +268,23 @@ def build_html():
 
 
 def main():
-    page_path = OUT / "详情页.html"
-    page_path.write_text(build_html(), encoding="utf-8")
+    ap = argparse.ArgumentParser(description="详情页（落地页）两屏 9:16")
+    ap.add_argument("--spec", required=True, help="landing_spec.json 路径")
+    ap.add_argument("--out", default=None, help="输出目录（默认 <当前工作目录>/landing）")
+    args = ap.parse_args()
+
+    spec = load_spec(args.spec)
+    out_dir = pathlib.Path(args.out) if args.out else pathlib.Path(spec.get("out_dir") or pathlib.Path.cwd() / "landing")
+    if not out_dir.exists():
+        os.makedirs(out_dir)
+
+    person_data_uri = None
+    if spec["screen1"].get("person_image"):
+        person_data_uri = person_uri(spec["screen1"]["person_image"],
+                                     spec["screen1"].get("person_crop_bottom", 1.0))
+
+    page_path = out_dir / "详情页.html"
+    page_path.write_text(build_html(spec, person_data_uri), encoding="utf-8")
     print("saved:", page_path)
 
     shots = [("s1", "详情页-上屏-9x16.png"), ("s2", "详情页-下屏-9x16.png")]
@@ -215,9 +295,15 @@ def main():
         pg.wait_for_timeout(1000)
         for sid, name in shots:
             el = pg.locator(f"#{sid}")
-            el.screenshot(path=str(OUT / name))
-            print("saved:", OUT / name, Image.open(OUT / name).size)
+            el.screenshot(path=str(out_dir / name))
+            size = Image.open(out_dir / name).size
+            if size != (W, H):
+                b.close()
+                sys.exit(f"❌ {name} 尺寸是 {size[0]}×{size[1]}，应为 {W}×{H}。\n"
+                         f"   多半是 CSS 没生效（见 sanity_check_css 的说明），检查 .screen 规则是否被丢弃。")
+            print("saved:", out_dir / name, size)
         b.close()
+    print(f"\n✅ 详情页已输出到 {out_dir}")
 
 
 if __name__ == "__main__":

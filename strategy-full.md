@@ -142,7 +142,10 @@ A/B 两版区别只在**主打人群与主视觉**（例：A 版打"获客成本
 
 内容**只放三样**（精简是关键）：① 一个主视觉数字/承诺 ② 三条卖点，每条 ≤10 字 ③ 人设署名 + 品牌名。
 
-做法：**HTML 排版 + Playwright 按精确尺寸截图**（字号/渐变/对齐全可控，改字不用改逻辑）；背景图用图像生成后按目标比例裁切。A/B 两版复用同一张背景图 → **零额外积分**。
+做法：`scripts/build_ad_assets.py --spec assets_spec.json`——**spec 驱动，不要改脚本源码**。HTML 排版 + Playwright 按精确尺寸截图（字号/渐变/对齐全可控）。
+
+`assets_spec.json` 字段：`person`（name/role/initial）、`brand`、`brand_foot`、`trust[]`、`variants.A|B`（`hook[2]`/`big[2]`/`rule`/`points[]`/`kicker`/`tall_hook[2]`/`tall_big[2]`/`tall_small`/`tall_points[]`），背景图 `bg_wide`/`bg_tall`（可写在顶层做默认，变体可覆盖；**A/B 复用同一张 → 零额外积分**）。
+产物默认写到**当前工作目录**的 `assets/`（`--out` 可指定）；脚本会自查出图尺寸，不是 1920×1080 / 1080×1920 直接报错退出。
 ⚠️ 素材合规：✕ 不放二维码/电话/微信号/URL/按钮（OCR 会抓）；✕ 不做大字报，图片文字占比压低位；✕ 不模仿微信界面与系统通知。
 若需新的背景图会调用图像模型（每张约 5–10 积分），**出手前先告知预计消耗**。
 
@@ -154,8 +157,11 @@ A/B 两版区别只在**主打人群与主视觉**（例：A 版打"获客成本
 - **下屏**：4 个能力块 → 行业覆盖 12 格 → 选择理由 2×2
 - **两屏共用同一套浅蓝 #DCE9F7 → 白 的渐变 + 暖橙点缀**，下屏顶端接住上屏底部，**前后色调呼应**
 
-做法：`scripts/build_landing_page.py`（内容以常量数组写文件顶部，改字即改页）；1080×1920 排版 → 按屏截图。
-产出 **`landing/详情页.html`**（两屏叠放，可直接打开/发布）+ **`landing/详情页-上屏-9x16.png`**、**`landing/详情页-下屏-9x16.png`**。
+做法：`scripts/build_landing_page.py --spec landing_spec.json`——**spec 驱动，不要改脚本源码**；1080×1920 排版 → 按屏截图。
+
+`landing_spec.json` 字段：`screen1`（`tag`/`title[2]`/`subtitle`/`pains[4]`/`person_image`（可选，缺了就跳过人物块）/`brand_logo`/`brand_title[2]`/`brand_sub`）+ `screen2`（`abilities[4]`/`area_tag`/`area_title`/`areas[]`/`reason_tag`/`reason_title`/`reasons[4]`）。
+产物默认写到**当前工作目录**的 `landing/`（`--out` 可指定）：`详情页.html`（两屏叠放，可直接打开/发布）+ `详情页-上屏-9x16.png` + `详情页-下屏-9x16.png`；脚本会自查出图尺寸，不是 1080×1920 直接报错退出（CSS 被静默丢弃也能拦住）。
+⚠️ `person_image` 若用 AI 生成的人物图，**不要靠裁图去掉「AI 生成」标注**（`person_crop_bottom` 默认 1.0 不裁）；正式投放换实拍。
 
 硬性规范：🚫 **留资表单不做进图**——表单、隐私授权勾选、提交按钮一律走**投放后台自带的【表单】/【商家微信】组件**（画进图里点不动，也收不到线索）；🚫 备案文案等页面级信息放后台页面里；✕ 不放二维码/电话/微信号；✕ 不做效果承诺。
 详情页文案另有 **5 套**（见第 5c 步的 detail spec），交付页里单独成节、可一键复制。
@@ -236,12 +242,12 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 | `合规审核报告-<公司名>.md` | 机扫 + 人工清单、**原文→合规改写对照表**、开户资质与举证清单（第 8.1 步；有命中时必出） |
 | `文案-可复制-合规版.html` | 纯文案复制页（第 5c 步），改文案/给设计用 |
 | `海报文案-可复制.html` | **海报营销文案 N 份**（用户要海报时出）：每份 = 大字 + 补充行 + 3 条卖点 + 收口，按人群/痛点分，可独立成海报也可 A/B |
-| `广告效果图/*.png` | 每条外层文案一张朋友圈卡片效果图（第 5b 步） |
-| `后台配图-16x9-A/B.png` / `后台配图-9x16-A/B.png` | 投放后台要上传的成品素材：详情页首屏配图 ×2 + 钩子海报 ×2（第 5d 步） |
+| `ad_effects/*.png` | 朋友圈卡片效果图（**默认最多 2 张**，第 5b 步） |
+| `assets/后台配图-16x9-A/B.png`、`assets/后台配图-9x16-A/B.png` | 投放后台要上传的成品素材：详情页首屏配图 ×2 + 钩子海报 ×2（第 5d 步） |
 | `landing/详情页-上屏-9x16.png` / `-下屏-9x16.png` | **详情页（落地页）两屏 9:16**：上屏 + 下屏，色调呼应可连排（第 5e 步） |
 | `landing/详情页.html` | 两屏叠放的页面文件，可直接打开或发布 |
 | `详情页-文生图提示词.html` | **详情页配图提示词 + 该屏文案**（2 条，一屏一条；每条都有「提示词 + 这一屏要写的文案」，各自可复制）（第 5e 步） |
-| `copy_spec*.json` / `spec*.json` / `build.json` | 各脚本入参，改文案后重跑用 |
+| `copy_spec*.json` / `detail_copy_spec.json` / `assets_spec.json` / `landing_spec.json` / `spec*.json` / `build.json` | 各脚本入参，改内容后重跑用。**换客户只改 spec，不要改脚本源码** |
 
 对话回复中给出摘要与文件链接。**同几处（HTML 交付页 / 效果图 / 方案第 3 节 / 合规版）的文案必须一致**——改了文案就同步重跑，别只改一处。
 
@@ -272,7 +278,8 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 | scripts/render_copy_sheet.py | 外层文案 / 详情页文案 / 配图提示词+该屏文案 → 一键复制 HTML 页（自动识别 `ads` 或 `items` 结构；`items` 里带 `copy[]` 时图与字分别可复制） |
 | scripts/check_compliance.py | 文案/方案 → 违禁词与风险词检测（第 8.1 步，交付前必跑；有 BLOCK 返回退出码 1） |
 | scripts/build_report_html.py | 方案 + 报告 + 文案 + 效果图 + 配图 + 详情页 → 自包含 HTML 交付页（第 9 步，最终呈现） |
-| scripts/build_landing_page.py | 详情页（落地页）两屏 9:16 → HTML + 上屏/下屏两张图（第 5e 步） |
+| scripts/build_ad_assets.py | `assets_spec.json` → 后台配图 16:9 ×2 + 9:16 ×2（第 5d 步）；**spec 驱动，换客户不改源码** |
+| scripts/build_landing_page.py | `landing_spec.json` → 详情页（落地页）两屏 9:16 的 HTML + 上屏/下屏两张图（第 5e 步）；**spec 驱动，换客户不改源码** |
 | scripts/build_strategy_full.py | SKILL.md + references → 合并成 `strategy-full.md` 单文件（供不支持技能包的 AI 直读；**改完文档跑一次**） |
 
 ---
@@ -886,7 +893,7 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 - 写成 `detail_copy_spec.json`（结构与 `copy_spec.json` 相同），交付页里单独成节，每套一个「复制这一套」按钮 + 一个「复制全部 5 套」
 - 5 套按**不同人群/痛点**分（获客成本焦虑 / 存量会员沉睡 / 被投流师劝退 / 老客不复购 / 怕烧钱停不下来），不要只是换同义词
 - 词表用 **`--mode page`** 扫（详情页是网页，不受 40 字与空格限制）
-- 要把某一套落成成品图：改 `build_ad_assets.py` 里 `VARIANTS` 的 `hook / big / rule / points`，**复用同一张背景图，零额外积分**
+- 要把某一套落成成品图：把它写进 `assets_spec.json` 的 `variants`，跑 `build_ad_assets.py --spec assets_spec.json`，**复用同一张背景图，零额外积分**
 
 ### 详情页配图提示词：**只有 2 条（一屏一条），但每条必须同时给出「这一屏要写的文案」**
 
@@ -965,7 +972,17 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 3. `viewport` 精确设为目标尺寸，`device_scale_factor=1`，`screenshot(clip=...)` 出图
 4. 字体用系统 CJK 栈（PingFang SC / Hiragino Sans GB），不要用细体
 
-参考实现：见项目里的 `build_ad_assets.py`（横竖两套模板 + 裁图工具函数，直接抄改文字即可）。
+参考实现：`scripts/build_ad_assets.py`（横竖两套模板 + 裁图工具函数 + CSS 静默失效自查）。**用 `--spec assets_spec.json` 调用，不要改脚本源码。**
+
+`assets_spec.json` 字段：
+
+| 位置 | 字段 |
+| --- | --- |
+| 顶层 | `accent`、`person`（`name`/`role`/`initial`）、`brand`、`brand_foot`、`trust[]`、`bg_wide`、`bg_tall`、`focus_wide`、`focus_tall`、`out_dir`（可选） |
+| `variants.A / B` | `hook[2]`、`big[2]`、`rule`、`points[]`（3 条）、`kicker`、`tall_hook[2]`、`tall_big[2]`、`tall_small`、`tall_points[]`（3 条），可覆盖 `bg_wide`/`bg_tall` |
+
+- `variants` **最多 2 个**（A/B）；背景图可写在顶层做默认、变体覆盖；**A/B 复用同一张 → 零额外积分**
+- 输出到**当前工作目录**的 `assets/`（`--out` 可指定）；脚本自查出图尺寸必须为 1920×1080 / 1080×1920
 
 ### 素材合规（两条图的硬约束）
 
@@ -999,9 +1016,21 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 
 ### 做法
 
-`scripts/build_landing_page.py`（复制一份改内容）：内容以常量数组写在文件顶部（`PAINS` / `ABILITIES` / `AREAS` / `REASONS`），
-1080 × 1920 排版 → Playwright **按屏截图**（`#s1` / `#s2`）。
-产出三个文件：`landing/详情页.html`（两屏叠放，可直接打开/托管）+ `landing/详情页-上屏-9x16.png` + `landing/详情页-下屏-9x16.png`。
+`scripts/build_landing_page.py --spec landing_spec.json`（**spec 驱动，不要改脚本源码**）：1080 × 1920 排版 → Playwright **按屏截图**（`#s1` / `#s2`）。
+
+`landing_spec.json` 字段：
+
+| 段 | 字段 |
+| --- | --- |
+| 顶层 | `accent`、`accent2`、`ink`、`page_title`、`out_dir`（可选） |
+| `screen1` | `tag`、`title[2]`（前段/强调段）、`subtitle`、`pains[4]`（每项 `[标题, 说明]`）、`person_image`（**可选**，缺了自动跳过人物块）、`person_crop_bottom`（默认 1.0 不裁）、`brand_logo`、`brand_title[2]`、`brand_sub` |
+| `screen2` | `abilities[4]`（`[序号, 标题, 说明]`）、`area_tag`、`area_title`、`areas[]`（推荐 12 项，3 列网格）、`reason_tag`、`reason_title`、`reasons[4]`（`[主词, 副词, 说明]`） |
+
+`pains` / `abilities` / `reasons` **必须各 4 条**（版面按 4 张卡定位），缺了直接报错退出。
+
+产出三个文件到**当前工作目录**的 `landing/`（`--out` 可指定）：`详情页.html`（两屏叠放，可直接打开/托管）+ `详情页-上屏-9x16.png` + `详情页-下屏-9x16.png`。脚本自查出图尺寸必须为 1080 × 1920。
+
+⚠️ **不要靠裁图去掉人物图上的「AI 生成」标注**（`person_crop_bottom` 默认 1.0 就是为此）。用 AI 生成的人物图时保留标注，正式投放换实拍。
 
 > 上屏那张人物图用图像生成即可（每张 5–10 积分），裁掉水印后按需可标注"含 AI 生成示意素材"。
 > **改完内容一定量一次两屏是否溢出**：`pg.locator("#s1").evaluate("e=>e.scrollHeight")` 必须 ≤ 1920。
@@ -1029,7 +1058,7 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 用 `render_copy_sheet.py` 出可一键复制页（spec 里可用 `rules` 放通用规范、`labels` 覆盖按钮文案）；
 在 `build.json` 里加 `"poster_spec": "poster_copy_spec.json"`，交付页会多出一个「海报文案」板块。
 
-> 要把某一份做成**成品海报**：改 `build_ad_assets.py` 里 `VARIANTS` 的 `tall_*` 字段即可（竖版 1080×1920），**与钩子海报共用同一套版式和背景，零额外积分**。
+> 要把某一份做成**成品海报**：把它写进 `assets_spec.json` 的 `variants`（`tall_hook` / `tall_big` / `tall_small` / `tall_points`），跑 `build_ad_assets.py --spec assets_spec.json`（竖版 1080×1920），**与钩子海报共用同一套版式和背景，零额外积分**。
 
 ## 五、交付顺序
 
@@ -1037,8 +1066,8 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 1. check_compliance.py  →  BLOCK 归零（外层用 outer 模式，详情页/海报用 --mode page）
 2. render_ad_mockup.py  →  效果图 × 2          （最多 2 张，确认方向）
 3. render_copy_sheet.py →  文案-可复制-合规版.html（改文案用）
-4. 后台配图             →  16:9 × 2 + 9:16 × 2   （详情页配图 + 钩子海报）
-5. build_landing_page.py→  详情页两屏 9:16 + 详情页.html
+4. build_ad_assets.py --spec assets_spec.json      →  16:9 × 2 + 9:16 × 2（详情页配图 + 钩子海报）
+5. build_landing_page.py --spec landing_spec.json  →  详情页两屏 9:16 + 详情页.html
 6. render_copy_sheet.py →  海报文案-可复制.html （用户要海报时）
 7. build_report_html.py →  交付页.html          （最终呈现，装下以上全部）
 ```

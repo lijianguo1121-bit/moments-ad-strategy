@@ -84,7 +84,7 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 - 写成 `detail_copy_spec.json`（结构与 `copy_spec.json` 相同），交付页里单独成节，每套一个「复制这一套」按钮 + 一个「复制全部 5 套」
 - 5 套按**不同人群/痛点**分（获客成本焦虑 / 存量会员沉睡 / 被投流师劝退 / 老客不复购 / 怕烧钱停不下来），不要只是换同义词
 - 词表用 **`--mode page`** 扫（详情页是网页，不受 40 字与空格限制）
-- 要把某一套落成成品图：改 `build_ad_assets.py` 里 `VARIANTS` 的 `hook / big / rule / points`，**复用同一张背景图，零额外积分**
+- 要把某一套落成成品图：把它写进 `assets_spec.json` 的 `variants`，跑 `build_ad_assets.py --spec assets_spec.json`，**复用同一张背景图，零额外积分**
 
 ### 详情页配图提示词：**只有 2 条（一屏一条），但每条必须同时给出「这一屏要写的文案」**
 
@@ -163,7 +163,17 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 3. `viewport` 精确设为目标尺寸，`device_scale_factor=1`，`screenshot(clip=...)` 出图
 4. 字体用系统 CJK 栈（PingFang SC / Hiragino Sans GB），不要用细体
 
-参考实现：见项目里的 `build_ad_assets.py`（横竖两套模板 + 裁图工具函数，直接抄改文字即可）。
+参考实现：`scripts/build_ad_assets.py`（横竖两套模板 + 裁图工具函数 + CSS 静默失效自查）。**用 `--spec assets_spec.json` 调用，不要改脚本源码。**
+
+`assets_spec.json` 字段：
+
+| 位置 | 字段 |
+| --- | --- |
+| 顶层 | `accent`、`person`（`name`/`role`/`initial`）、`brand`、`brand_foot`、`trust[]`、`bg_wide`、`bg_tall`、`focus_wide`、`focus_tall`、`out_dir`（可选） |
+| `variants.A / B` | `hook[2]`、`big[2]`、`rule`、`points[]`（3 条）、`kicker`、`tall_hook[2]`、`tall_big[2]`、`tall_small`、`tall_points[]`（3 条），可覆盖 `bg_wide`/`bg_tall` |
+
+- `variants` **最多 2 个**（A/B）；背景图可写在顶层做默认、变体覆盖；**A/B 复用同一张 → 零额外积分**
+- 输出到**当前工作目录**的 `assets/`（`--out` 可指定）；脚本自查出图尺寸必须为 1920×1080 / 1080×1920
 
 ### 素材合规（两条图的硬约束）
 
@@ -197,9 +207,21 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 
 ### 做法
 
-`scripts/build_landing_page.py`（复制一份改内容）：内容以常量数组写在文件顶部（`PAINS` / `ABILITIES` / `AREAS` / `REASONS`），
-1080 × 1920 排版 → Playwright **按屏截图**（`#s1` / `#s2`）。
-产出三个文件：`landing/详情页.html`（两屏叠放，可直接打开/托管）+ `landing/详情页-上屏-9x16.png` + `landing/详情页-下屏-9x16.png`。
+`scripts/build_landing_page.py --spec landing_spec.json`（**spec 驱动，不要改脚本源码**）：1080 × 1920 排版 → Playwright **按屏截图**（`#s1` / `#s2`）。
+
+`landing_spec.json` 字段：
+
+| 段 | 字段 |
+| --- | --- |
+| 顶层 | `accent`、`accent2`、`ink`、`page_title`、`out_dir`（可选） |
+| `screen1` | `tag`、`title[2]`（前段/强调段）、`subtitle`、`pains[4]`（每项 `[标题, 说明]`）、`person_image`（**可选**，缺了自动跳过人物块）、`person_crop_bottom`（默认 1.0 不裁）、`brand_logo`、`brand_title[2]`、`brand_sub` |
+| `screen2` | `abilities[4]`（`[序号, 标题, 说明]`）、`area_tag`、`area_title`、`areas[]`（推荐 12 项，3 列网格）、`reason_tag`、`reason_title`、`reasons[4]`（`[主词, 副词, 说明]`） |
+
+`pains` / `abilities` / `reasons` **必须各 4 条**（版面按 4 张卡定位），缺了直接报错退出。
+
+产出三个文件到**当前工作目录**的 `landing/`（`--out` 可指定）：`详情页.html`（两屏叠放，可直接打开/托管）+ `详情页-上屏-9x16.png` + `详情页-下屏-9x16.png`。脚本自查出图尺寸必须为 1080 × 1920。
+
+⚠️ **不要靠裁图去掉人物图上的「AI 生成」标注**（`person_crop_bottom` 默认 1.0 就是为此）。用 AI 生成的人物图时保留标注，正式投放换实拍。
 
 > 上屏那张人物图用图像生成即可（每张 5–10 积分），裁掉水印后按需可标注"含 AI 生成示意素材"。
 > **改完内容一定量一次两屏是否溢出**：`pg.locator("#s1").evaluate("e=>e.scrollHeight")` 必须 ≤ 1920。
@@ -227,7 +249,7 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 用 `render_copy_sheet.py` 出可一键复制页（spec 里可用 `rules` 放通用规范、`labels` 覆盖按钮文案）；
 在 `build.json` 里加 `"poster_spec": "poster_copy_spec.json"`，交付页会多出一个「海报文案」板块。
 
-> 要把某一份做成**成品海报**：改 `build_ad_assets.py` 里 `VARIANTS` 的 `tall_*` 字段即可（竖版 1080×1920），**与钩子海报共用同一套版式和背景，零额外积分**。
+> 要把某一份做成**成品海报**：把它写进 `assets_spec.json` 的 `variants`（`tall_hook` / `tall_big` / `tall_small` / `tall_points`），跑 `build_ad_assets.py --spec assets_spec.json`（竖版 1080×1920），**与钩子海报共用同一套版式和背景，零额外积分**。
 
 ## 五、交付顺序
 
@@ -235,8 +257,8 @@ python3 <skill目录>/scripts/build_report_html.py --config build.json
 1. check_compliance.py  →  BLOCK 归零（外层用 outer 模式，详情页/海报用 --mode page）
 2. render_ad_mockup.py  →  效果图 × 2          （最多 2 张，确认方向）
 3. render_copy_sheet.py →  文案-可复制-合规版.html（改文案用）
-4. 后台配图             →  16:9 × 2 + 9:16 × 2   （详情页配图 + 钩子海报）
-5. build_landing_page.py→  详情页两屏 9:16 + 详情页.html
+4. build_ad_assets.py --spec assets_spec.json      →  16:9 × 2 + 9:16 × 2（详情页配图 + 钩子海报）
+5. build_landing_page.py --spec landing_spec.json  →  详情页两屏 9:16 + 详情页.html
 6. render_copy_sheet.py →  海报文案-可复制.html （用户要海报时）
 7. build_report_html.py →  交付页.html          （最终呈现，装下以上全部）
 ```

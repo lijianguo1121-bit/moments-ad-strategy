@@ -31,12 +31,12 @@
 | `海报文案-可复制.html` | N 份海报营销文案，一对一复制（用户要海报时出） |
 | `合规审核报告-<公司名>.md` | 机扫 + 人工清单结果、原文→合规改写对照、开户资质与举证清单 |
 | `广告效果图/*.png` | 朋友圈卡片效果图（**最多 2 张**，每个投放计划 1 张） |
-| `后台配图-16x9-A/B.png` | 详情页首屏配图（1920×1080，A/B 两版人群） |
-| `后台配图-9x16-A/B.png` | 钩子海报（1080×1920，A/B 两版人群） |
+| `assets/后台配图-16x9-A/B.png` | 详情页首屏配图（1920×1080，A/B 两版人群） |
+| `assets/后台配图-9x16-A/B.png` | 钩子海报（1080×1920，A/B 两版人群） |
 | `landing/详情页-上屏-9x16.png` / `-下屏-9x16.png` | **详情页（落地页）两屏 9:16**：上屏 + 下屏，色调呼应可连排 |
 | `landing/详情页.html` | 两屏叠放的页面文件，可直接打开或发布 |
 | `详情页-文生图提示词.html` | 详情页配图提示词 + **该屏文案**（2 条，一屏一条），提示词与文案分别可一键复制 |
-| `copy_spec*.json` / `detail_copy_spec.json` / `spec*.json` / `build.json` | 脚本入参，改内容后重跑 |
+| `copy_spec*.json` / `detail_copy_spec.json` / `assets_spec.json` / `landing_spec.json` / `spec*.json` / `build.json` | 脚本入参，改内容后重跑。**换客户只改 spec，不要改脚本源码** |
 
 ## 配套脚本
 
@@ -45,7 +45,8 @@
 | `scripts/check_compliance.py` | 违禁词/风险词检测（交付前必跑；`--mode outer/page` 区分外层与落地页） |
 | `scripts/render_ad_mockup.py` | 场景配图 + 外层文案 → 朋友圈卡片效果图；也用于量文案行宽 |
 | `scripts/render_copy_sheet.py` | 外层文案 / 详情页文案 / 海报文案 / 配图提示词+该屏文案 → 一键复制 HTML 页（自动识别 `ads` 或 `items`；支持 `rules` 规范卡与 `labels` 按钮文案覆盖） |
-| `scripts/build_landing_page.py` | 详情页（落地页）两屏 9:16 → HTML + 上屏/下屏两张图 |
+| `scripts/build_ad_assets.py` | `assets_spec.json` → 后台配图 16:9 ×2 + 9:16 ×2（spec 驱动，换客户不改源码） |
+| `scripts/build_landing_page.py` | `landing_spec.json` → 详情页（落地页）两屏 9:16 → HTML + 上屏/下屏两张图（spec 驱动，换客户不改源码） |
 | `scripts/build_report_html.py` | 全部产出 → 自包含 HTML 交付页（最终呈现） |
 | `scripts/build_strategy_full.py` | SKILL.md + references → 合并成 `strategy-full.md` 单文件 |
 
