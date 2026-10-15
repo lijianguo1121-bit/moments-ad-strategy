@@ -49,12 +49,6 @@
 | `scripts/build_report_html.py` | 全部产出 → 自包含 HTML 交付页（最终呈现） |
 | `scripts/build_strategy_full.py` | SKILL.md + references → 合并成 `strategy-full.md` 单文件 |
 
-## 依赖
-
-- 违禁词检测、文案/提示词复制页、单文件合并：**纯 Python 标准库**，无需第三方包
-- 后台配图 / 详情页长图 / HTML 交付页：需要 `Pillow`、`playwright`（截图）、`markdown`（Markdown 转 HTML）
-- 配图与效果图会调用图像生成能力（每张约 5–10 积分，出手前会先告知消耗）
-
 ## 安装
 
 把整个文件夹（包含 SKILL.md）放到技能目录：
@@ -67,16 +61,17 @@
 ## 依赖
 
 - 违禁词检测、文案/提示词复制页、单文件合并：**纯 Python 标准库**，无需第三方包
-- 后台配图 / 详情页长图 / HTML 交付页：需要 `Pillow`、`playwright`（截图）、`markdown`（Markdown 转 HTML）
+- 后台配图 / 详情页两屏 / HTML 交付页：需要 `Pillow`、`playwright`（截图）、`markdown`（Markdown 转 HTML）
 - 效果图与配图会调用图像生成能力（每张约 5–10 积分，出手前会先告知消耗）；没有该能力时自动降级为只出文字方案
 
 ## 版权说明
 
-`references/case-images/` 内案例原图来自腾讯广告帮助中心行业案例专题，原课件标注"授权用于教学"，请控制分发范围。
+`references/case-images/` 内 30 张案例原图来自腾讯广告帮助中心行业案例专题，**版权归腾讯及其权利人所有**，原课件标注"授权用于教学"。本仓库仅为学习参考收录，不构成对第三方的授权；如需商用请自行取得权利人许可。如权利人认为不宜公开，请联系删除。
 
 ## 快速直读链接
 
 学员/其他 AI 直接读这个文件即可学习完整方法论：
 `strategy-full.md`（raw 链接：`https://raw.githubusercontent.com/lijianguo1121-bit/moments-ad-strategy/main/strategy-full.md`）
 
-> 注：`references/case-images/`（30 张腾讯案例原图）未包含在公开仓库中（原课件标注"授权用于教学"）；如需完整包请私下获取 `.skill` 文件。
+> 注：完整包已随本仓库提供（含 `references/case-images/` 30 张案例原图），`git clone` 即可获得，无需另行索取 `.skill` 文件。
+> 若只需要方法论文本（不含原图），可只取 `strategy-full.md` 单文件。
